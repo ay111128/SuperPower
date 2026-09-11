@@ -40,13 +40,16 @@ class ApiClient @Inject constructor(
             }
         }.getOrDefault("")
 
-        val request = if (token.isNotEmpty()) {
-            chain.request().newBuilder()
-                .addHeader("Authorization", "Bearer $token")
-                .build()
-        } else {
-            chain.request()
-        }
+        val request = chain.request().newBuilder()
+            .addHeader("Accept", "application/json, text/plain, */*")
+            .addHeader("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+            .addHeader("Connection", "keep-alive")
+            .apply {
+                if (token.isNotEmpty()) {
+                    addHeader("Authorization", "Bearer $token")
+                }
+            }
+            .build()
         chain.proceed(request)
     }
 
