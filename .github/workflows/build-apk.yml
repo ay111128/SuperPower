@@ -39,6 +39,20 @@ jobs:
       - name: Generate Gradle Wrapper
         run: gradle wrapper --gradle-version 8.11.1
 
+      - name: Diagnostic - Verify keystore
+        run: |
+          echo "=== Keystore file check ==="
+          ls -la $SIGNING_STORE_FILE
+          echo ""
+          echo "=== Keystore aliases ==="
+          keytool -list -keystore $SIGNING_STORE_FILE -storepass $SIGNING_STORE_PASSWORD 2>&1 || echo "keytool failed"
+          echo ""
+          echo "=== Try all common aliases ==="
+          for alias in key0 "Key 0" release mykey android debug; do
+            echo -n "Alias '$alias': "
+            keytool -list -keystore $SIGNING_STORE_FILE -storepass $SIGNING_STORE_PASSWORD -alias "$alias" 2>&1 | head -1
+          done
+
       - name: Get version from build.gradle.kts
         id: version
         run: |
@@ -49,17 +63,77 @@ jobs:
       - name: Build Release APK
         run: ./gradlew assembleRelease --no-daemon
 
-      - name: Rename APK
+      - name: Check APK signing
         run: |
-          VERSION=${{ steps.version.outputs.version }}
-          # 找到实际的 APK 文件（可能是 signed 或 unsigned）
+          echo "=== APK files ==="
+          find app/build/outputs/apk/release -name "*.apk" -ls
+          echo ""
           APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
           if [ -z "$APK_FILE" ]; then
             echo "❌ No APK found"
             exit 1
           fi
+          echo "=== JAR signature check ==="
+          jarsigner -verify -verbose -certs "$APK_FILE" 2>&1 | tail -5
+          echo ""
+          echo "=== APK info ==="
+          unzip -l "$APK_FILE" 2>/dev/null | head -20
+
+      - name: Re-sign with apksigner (v2/v3 scheme)
+        run: |
+          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          VERSION=${{ steps.version.outputs.version }}
+
+          # Find apksigner in Android SDK
+          APKSIGNER=$(find /usr/local/lib/android -name "apksigner" 2>/dev/null | head -1)
+          if [ -z "$APKSIGNER" ]; then
+            APKSIGNER=$(find $ANDROID_HOME -name "apksigner" 2>/dev/null | head -1)
+          fi
+
+          if [ -n "$APKSIGNER" ]; then
+            echo "Found apksigner: $APKSIGNER"
+            # Re-sign with apksigner (creates v2/v3 signature)
+            "$APKSIGNER" sign --ks "$SIGNING_STORE_FILE" \
+              --ks-pass "pass:$SIGNING_STORE_PASSWORD" \
+              --ks-key-alias "$SIGNING_KEY_ALIAS" \
+              --key-pass "pass:$SIGNING_KEY_PASSWORD" \
+              --v1-signing-enabled true \
+              --v2-signing-enabled true \
+              --v3-signing-enabled true \
+              "$APK_FILE"
+            echo "✅ Re-signed with apksigner"
+            # Verify
+            "$APKSIGNER" verify --verbose "$APK_FILE" 2>&1 || true
+          else
+            echo "⚠️ apksigner not found, using jarsigner fallback"
+            # Extract, re-sign with jarsigner, rezip
+            TMPDIR=$(mktemp -d)
+            cp "$APK_FILE" "$TMPDIR/unsigned.apk"
+            cd "$TMPDIR"
+            unzip -q unsigned.apk -d unsigned
+            cd unsigned
+            jarsigner -keystore "$GITHUB_WORKSPACE/$SIGNING_STORE_FILE" \
+              -storepass "$SIGNING_STORE_PASSWORD" \
+              -keypass "$SIGNING_KEY_PASSWORD" \
+              -signedjar ../signed.apk \
+              . "$SIGNING_KEY_ALIAS"
+            cd "$GITHUB_WORKSPACE"
+            cp "$TMPDIR/signed.apk" "$APK_FILE"
+            rm -rf "$TMPDIR"
+            echo "✅ Re-signed with jarsigner"
+          fi
+
+      - name: Final APK info
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
           cp "$APK_FILE" paperbox-v${VERSION}.apk
-          echo "📦 APK: $(ls -lh paperbox-v${VERSION}.apk)"
+          echo "📦 Final APK: $(ls -lh paperbox-v${VERSION}.apk)"
+          echo "=== Signature schemes ==="
+          APKSIGNER=$(find /usr/local/lib/android -name "apksigner" 2>/dev/null | head -1)
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --print-certs paperbox-v${VERSION}.apk 2>&1 || true
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
