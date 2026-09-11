@@ -20,6 +20,7 @@ jobs:
       SIGNING_STORE_PASSWORD: ay111128
       SIGNING_KEY_ALIAS: key0
       SIGNING_KEY_PASSWORD: ay111128
+      GRADLE_WRAPPER_DISABLE_VALIDATION: true
 
     steps:
       - name: Checkout code
