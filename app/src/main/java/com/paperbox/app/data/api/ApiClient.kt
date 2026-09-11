@@ -16,6 +16,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import java.security.Security
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -57,12 +58,29 @@ class ApiClient @Inject constructor(
         }
     }
 
+    private val retryInterceptor = Interceptor { chain ->
+        var lastException: Exception? = null
+        repeat(3) { attempt ->
+            try {
+                return@Interceptor chain.proceed(chain.request())
+            } catch (e: Exception) {
+                lastException = e
+                if (attempt < 2) {
+                    Thread.sleep(1000L * (attempt + 1))
+                }
+            }
+        }
+        throw lastException ?: Exception("连接失败")
+    }
+
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(authInterceptor)
+        .addInterceptor(retryInterceptor)
         .addInterceptor(loggingInterceptor)
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     private fun getBaseUrl(): String {
