@@ -19,8 +19,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // 服务器地址（可改）
-        buildConfigField("String", "API_BASE_URL", "\"https://www.ay111128.com\"")
+        // 服务器地址（用 IP 直连绕过域名 TLS 拦截）
+        buildConfigField("String", "API_BASE_URL", "\"https://101.133.169.230\"")
     }
 
     signingConfigs {

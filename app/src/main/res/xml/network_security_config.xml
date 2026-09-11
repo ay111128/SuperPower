@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <!-- IP 直连：信任系统证书 + 用户添加的证书 -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">101.133.169.230</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- 域名连接：只信任系统证书 -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">www.ay111128.com</domain>
         <trust-anchors>
