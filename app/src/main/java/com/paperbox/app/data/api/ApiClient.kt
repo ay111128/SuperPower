@@ -10,6 +10,7 @@ import com.paperbox.app.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -33,7 +34,9 @@ class ApiClient @Inject constructor(
 ) {
     private val authInterceptor = Interceptor { chain ->
         val token = runCatching {
-            context.dataStore.data.map { it[PrefsKeys.TOKEN] ?: "" }.first()
+            runBlocking {
+                context.dataStore.data.map { it[PrefsKeys.TOKEN] ?: "" }.first()
+            }
         }.getOrDefault("")
 
         val request = if (token.isNotEmpty()) {
@@ -64,9 +67,11 @@ class ApiClient @Inject constructor(
 
     private fun getBaseUrl(): String {
         return runCatching {
-            context.dataStore.data.map {
-                it[PrefsKeys.SERVER_URL] ?: BuildConfig.API_BASE_URL
-            }.first()
+            runBlocking {
+                context.dataStore.data.map {
+                    it[PrefsKeys.SERVER_URL] ?: BuildConfig.API_BASE_URL
+                }.first()
+            }
         }.getOrDefault(BuildConfig.API_BASE_URL)
     }
 
