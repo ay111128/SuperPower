@@ -23,8 +23,27 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"https://www.ay111128.com\"")
     }
 
+    signingConfigs {
+        create("release") {
+            val ksFile = project.findProperty("KEYSTORE_FILE") as? String
+            if (ksFile != null && file(ksFile).exists()) {
+                storeFile = file(ksFile)
+                storePassword = project.findProperty("KEYSTORE_PASSWORD") as? String ?: ""
+                keyAlias = project.findProperty("KEY_ALIAS") as? String ?: ""
+                keyPassword = project.findProperty("KEY_PASSWORD") as? String ?: ""
+            }
+        }
+    }
+
     buildTypes {
         release {
+            val ksFile = project.findProperty("KEYSTORE_FILE") as? String
+            if (ksFile != null && file(ksFile).exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                // CI 环境没有 keystore 时用 debug 签名（可安装）
+                signingConfig = signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

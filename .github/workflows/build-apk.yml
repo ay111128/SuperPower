@@ -47,8 +47,14 @@ jobs:
       - name: Rename APK
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          cp app/build/outputs/apk/release/app-release-unsigned.apk paperbox-v${VERSION}.apk || \
-          cp app/build/outputs/apk/release/app-release.apk paperbox-v${VERSION}.apk
+          # 找到实际的 APK 文件（可能是 signed 或 unsigned）
+          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          if [ -z "$APK_FILE" ]; then
+            echo "❌ No APK found"
+            exit 1
+          fi
+          cp "$APK_FILE" paperbox-v${VERSION}.apk
+          echo "📦 APK: $(ls -lh paperbox-v${VERSION}.apk)"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
