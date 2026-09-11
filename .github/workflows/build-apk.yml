@@ -61,22 +61,22 @@ jobs:
         run: |
           BUILD_TIME=$(TZ=Asia/Shanghai date '+%Y-%m-%d %H:%M')
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
+          if [ -z "$COMMIT_MSG" ]; then
+            COMMIT_MSG="手动触发构建"
+          fi
           {
             echo "## 📦 飞机盒报价工具 (Paperbox)"
             echo ""
             echo "**最新构建**：${BUILD_TIME}（${SHORT_SHA}）"
             echo ""
+            echo "### 更新内容"
+            echo "${COMMIT_MSG}"
+            echo ""
             echo "### 下载安装"
             echo "1. 点击下方 APK 文件下载"
             echo '2. 在手机上打开安装（需允许"未知来源"）'
             echo "3. 如已安装旧版本，直接覆盖安装即可"
-            echo ""
-            echo "### 功能"
-            echo "- 🏠 报价计算（长宽高、数量、利润、现货匹配）"
-            echo "- 📐 尺寸规格（硬编码价格/克重表）"
-            echo "- 🎨 素材管理（上传/预览/下载/查重）"
-            echo "- 📊 对账分析（Excel 导入导出）"
-            echo "- 🔐 登录注册（账号管理）"
           } > release_body.md
 
       - name: Create GitHub Release
