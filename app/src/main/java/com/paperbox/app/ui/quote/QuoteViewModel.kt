@@ -119,7 +119,7 @@ class QuoteViewModel @Inject constructor(
         recalculate()
     }
 
-    private fun recalculate() {
+    fun recalculate() {
         val state = _uiState.value
         val result = calculateQuote.calculate(state.form, state.materialConfigs)
         _uiState.value = state.copy(result = result)

@@ -39,6 +39,7 @@ google-services.json
 
 # Signing
 *.jks
+!release-key.jks
 *.keystore
 
 # Log files

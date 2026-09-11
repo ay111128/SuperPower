@@ -15,6 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      SIGNING_STORE_FILE: app/release-key.jks
+      SIGNING_STORE_PASSWORD: ay111128
+      SIGNING_KEY_ALIAS: release
+      SIGNING_KEY_PASSWORD: ay111128
 
     steps:
       - name: Checkout code

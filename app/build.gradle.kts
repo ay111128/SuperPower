@@ -25,24 +25,21 @@ android {
 
     signingConfigs {
         create("release") {
-            val ksFile = project.findProperty("KEYSTORE_FILE") as? String
-            if (ksFile != null && file(ksFile).exists()) {
+            val ksFile = System.getenv("SIGNING_STORE_FILE") ?: "release-key.jks"
+            if (file(ksFile).exists()) {
                 storeFile = file(ksFile)
-                storePassword = project.findProperty("KEYSTORE_PASSWORD") as? String ?: ""
-                keyAlias = project.findProperty("KEY_ALIAS") as? String ?: ""
-                keyPassword = project.findProperty("KEY_PASSWORD") as? String ?: ""
+                storePassword = System.getenv("SIGNING_STORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("SIGNING_KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("SIGNING_KEY_PASSWORD") ?: ""
             }
         }
     }
 
     buildTypes {
         release {
-            val ksFile = project.findProperty("KEYSTORE_FILE") as? String
-            if (ksFile != null && file(ksFile).exists()) {
+            val ksFile = System.getenv("SIGNING_STORE_FILE") ?: "release-key.jks"
+            if (file(ksFile).exists()) {
                 signingConfig = signingConfigs.getByName("release")
-            } else {
-                // CI 环境没有 keystore 时用 debug 签名（可安装）
-                signingConfig = signingConfigs.getByName("debug")
             }
             isMinifyEnabled = true
             isShrinkResources = true

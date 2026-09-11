@@ -174,6 +174,17 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
                 }
             }
 
+            // ── 计算按钮 ──
+            Button(
+                onClick = { viewModel.recalculate() },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = state.form.length > 0 && state.form.width > 0 && state.form.height > 0 && state.form.orderQuantity > 0
+            ) {
+                Icon(Icons.Default.Calculate, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("计算报价")
+            }
+
             // ── 报价结果 ──
             state.result?.let { result ->
                 Card(
