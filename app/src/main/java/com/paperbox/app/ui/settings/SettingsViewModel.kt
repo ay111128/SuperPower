@@ -36,18 +36,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun login(username: String, password: String, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val result = authRepository.login(username, password)
-            if (result.isSuccess) {
-                _uiState.value = SettingsUiState(isLoggedIn = true, username = username)
-                onResult(true)
-            } else {
-                onResult(false)
-            }
-        }
-    }
-
     fun logout() {
         viewModelScope.launch {
             authRepository.logout()

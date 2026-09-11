@@ -20,7 +20,8 @@ data class SizeGuideUiState(
     val inputW: String = "",
     val inputH: String = "",
     val matchedResults: List<MatchResult> = emptyList(),
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
 )
 
 data class MatchResult(
@@ -42,9 +43,9 @@ class SizeGuideViewModel @Inject constructor(
         loadProducts()
     }
 
-    private fun loadProducts() {
+    fun loadProducts() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             try {
                 val response = apiService.getSpotProducts()
                 if (response.isSuccessful) {
@@ -54,9 +55,17 @@ class SizeGuideViewModel @Inject constructor(
                         filteredProducts = products,
                         isLoading = false
                     )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = "加载失败 (${response.code()})，请检查网络后重试"
+                    )
                 }
-            } catch (_: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "网络连接失败，请检查网络后重试"
+                )
             }
         }
     }

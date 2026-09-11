@@ -13,6 +13,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.paperbox.app.data.api.dataStore
+import com.paperbox.app.data.api.PrefsKeys
+import com.paperbox.app.ui.auth.LoginScreen
 import com.paperbox.app.ui.quote.QuoteScreen
 import com.paperbox.app.ui.sizeguide.SizeGuideScreen
 import com.paperbox.app.ui.materials.MaterialsScreen
@@ -39,6 +42,17 @@ val bottomTabs = listOf(
 @Composable
 fun AppNavGraph() {
     val navController = rememberNavController()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // 检查登录状态
+    val dataStore = context.dataStore
+    val tokenFlow = dataStore.data.collectAsState(initial = null)
+    val isLoggedIn = tokenFlow.value?.get(PrefsKeys.TOKEN)?.isNotEmpty() == true
+
+    if (!isLoggedIn) {
+        LoginScreen(onLoginSuccess = { /* DataStore 更新后会自动触发 recomposition */ })
+        return
+    }
 
     Scaffold(
         bottomBar = {

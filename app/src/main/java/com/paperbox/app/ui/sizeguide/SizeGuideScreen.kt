@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -96,18 +97,35 @@ fun SizeGuideScreen(viewModel: SizeGuideViewModel = hiltViewModel()) {
             }
 
             Text("全部现货规格 (${state.filteredProducts.size})", fontWeight = FontWeight.Bold)
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(state.filteredProducts) { product ->
-                    Card {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(product.size, fontWeight = FontWeight.Medium)
-                                Text("${product.category} | ${product.weight}g", style = MaterialTheme.typography.bodySmall)
+
+            if (state.isLoading) {
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (state.errorMessage != null) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                    Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(state.errorMessage!!, color = MaterialTheme.colorScheme.onErrorContainer)
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = { viewModel.loadProducts() }) {
+                            Text("重试")
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(state.filteredProducts) { product ->
+                        Card {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(product.size, fontWeight = FontWeight.Medium)
+                                    Text("${product.category} | ${product.weight}g", style = MaterialTheme.typography.bodySmall)
+                                }
+                                Text("¥${product.price}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                             }
-                            Text("¥${product.price}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }

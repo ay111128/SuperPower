@@ -12,7 +12,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsState()
-    var showLoginDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -41,11 +40,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                     }
                     if (state.isLoggedIn) {
                         TextButton(onClick = { viewModel.logout() }) {
-                            Text("退出")
-                        }
-                    } else {
-                        Button(onClick = { showLoginDialog = true }) {
-                            Text("登录")
+                            Text("退出登录", color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -63,33 +58,10 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("关于", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
-                    Text("飞机盒报价 v1.0.0", style = MaterialTheme.typography.bodyMedium)
+                    Text("飞机盒报价 v0.0.0", style = MaterialTheme.typography.bodyMedium)
                     Text("飞机盒（纸盒）报价计算工具", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                 }
             }
         }
-    }
-
-    if (showLoginDialog) {
-        var username by remember { mutableStateOf("") }
-        var password by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showLoginDialog = false },
-            title = { Text("登录") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text("用户名") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("密码") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.login(username, password) { showLoginDialog = false }
-                }) { Text("登录") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLoginDialog = false }) { Text("取消") }
-            }
-        )
     }
 }

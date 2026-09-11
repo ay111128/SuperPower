@@ -1,0 +1,161 @@
+package com.paperbox.app.ui.auth
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.paperbox.app.ui.theme.Primary
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LoginScreen(
+    onLoginSuccess: () -> Unit,
+    viewModel: LoginViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    var isRegisterMode by remember { mutableStateOf(false) }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+
+    // 登录成功跳转
+    LaunchedEffect(uiState.isSuccess) {
+        if (uiState.isSuccess) onLoginSuccess()
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(title = { Text("飞机盒报价工具") })
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Logo / Title
+            Text(
+                "📦",
+                style = MaterialTheme.typography.displayLarge
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "纸盒报价",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Primary
+            )
+            Spacer(Modifier.height(32.dp))
+
+            // Tab 切换
+            TabRow(selectedTabIndex = if (isRegisterMode) 1 else 0) {
+                Tab(
+                    selected = !isRegisterMode,
+                    onClick = { isRegisterMode = false; viewModel.clearError() },
+                    text = { Text("登录") }
+                )
+                Tab(
+                    selected = isRegisterMode,
+                    onClick = { isRegisterMode = true; viewModel.clearError() },
+                    text = { Text("注册") }
+                )
+            }
+            Spacer(Modifier.height(24.dp))
+
+            // 用户名
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("用户名") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(12.dp))
+
+            // 密码
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("密码") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // 注册模式：确认密码
+            if (isRegisterMode) {
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it },
+                    label = { Text("确认密码") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // 错误信息
+            if (uiState.errorMessage != null) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        uiState.errorMessage!!,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // 登录/注册按钮
+            Button(
+                onClick = {
+                    if (isRegisterMode) {
+                        if (password != confirmPassword) {
+                            viewModel.setError("两次密码不一致")
+                        } else {
+                            viewModel.register(username, password)
+                        }
+                    } else {
+                        viewModel.login(username, password)
+                    }
+                },
+                enabled = !uiState.isLoading && username.isNotBlank() && password.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().height(48.dp)
+            ) {
+                if (uiState.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(if (isRegisterMode) "注册" else "登录")
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "默认管理员: admin / paperbox2024",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}

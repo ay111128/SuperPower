@@ -31,50 +31,28 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle
+      - name: Setup Gradle (with caching)
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
+          cache-read-only: ${{ github.ref != 'refs/heads/master' }}
 
-      - name: Generate Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.11.1
-
-      - name: Diagnostic - Verify keystore
-        run: |
-          echo "=== Keystore check ==="
-          keytool -list -keystore $SIGNING_STORE_FILE -storepass $SIGNING_STORE_PASSWORD 2>&1 | grep -E "Keystore type|entry|key0"
-
-      - name: Get version from build.gradle.kts
+      - name: Get version
         id: version
         run: |
           VERSION=$(grep 'versionName' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Building version: $VERSION"
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon --build-cache
 
-      - name: Verify APK signing
-        run: |
-          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
-          echo "APK: $APK_FILE"
-          ls -lh "$APK_FILE"
-          echo ""
-          # Verify signature
-          jarsigner -verify -verbose -certs "$APK_FILE" 2>&1 | tail -3
-          echo ""
-          # Check v2/v3 with apksigner
-          APKSIGNER=$(find /usr/local/lib/android -name "apksigner" 2>/dev/null | head -1)
-          if [ -n "$APKSIGNER" ]; then
-            "$APKSIGNER" verify --print-certs "$APK_FILE" 2>&1 | head -5
-          fi
-
-      - name: Package APK
+      - name: Package & verify
         run: |
           VERSION=${{ steps.version.outputs.version }}
           APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
           cp "$APK_FILE" paperbox-v${VERSION}.apk
-          echo "📦 Final APK: $(ls -lh paperbox-v${VERSION}.apk)"
+          echo "📦 $(ls -lh paperbox-v${VERSION}.apk)"
+          jarsigner -verify paperbox-v${VERSION}.apk 2>&1 | tail -1
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
