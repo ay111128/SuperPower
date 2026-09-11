@@ -46,7 +46,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon --build-cache
+        run: gradle assembleRelease --no-daemon --build-cache
 
       - name: Package & verify
         run: |
