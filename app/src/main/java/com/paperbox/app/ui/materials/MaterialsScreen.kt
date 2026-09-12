@@ -74,11 +74,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import com.paperbox.app.BuildConfig
 import com.paperbox.app.data.api.models.MaterialItem
 
 // ── 类型渐变色 ──
@@ -699,15 +702,25 @@ private fun MaterialGridCard(
                     .height(132.dp)
                     .background(typeStyle.gradient)
             ) {
-                // 类型图标
-                Icon(
-                    typeStyle.icon,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .size(40.dp),
-                    tint = Color.White.copy(alpha = 0.9f)
-                )
+                if (material.type == "image") {
+                    // 图片类型：显示真实图片
+                    AsyncImage(
+                        model = "${BuildConfig.API_BASE_URL}/materials-api/materials/${material.id}/file",
+                        contentDescription = material.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    // 非图片类型：显示渐变背景 + 类型图标
+                    Icon(
+                        typeStyle.icon,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(40.dp),
+                        tint = Color.White.copy(alpha = 0.9f)
+                    )
+                }
                 // 类型 badge
                 Surface(
                     shape = RoundedCornerShape(6.dp),
@@ -812,12 +825,21 @@ private fun MaterialListCard(
                     .background(typeStyle.gradient),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    typeStyle.icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = Color.White.copy(alpha = 0.9f)
-                )
+                if (material.type == "image") {
+                    AsyncImage(
+                        model = "${BuildConfig.API_BASE_URL}/materials-api/materials/${material.id}/file",
+                        contentDescription = material.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        typeStyle.icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = Color.White.copy(alpha = 0.9f)
+                    )
+                }
             }
 
             Spacer(Modifier.width(12.dp))
