@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import coil.ImageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
+import com.paperbox.app.BuildConfig
 import com.paperbox.app.data.api.ApiClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -20,7 +21,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import java.io.File
-import java.io.FileOutputStream
 import javax.inject.Inject
 
 @HiltViewModel
@@ -59,11 +59,7 @@ class MediaViewerViewModel @Inject constructor(
                 val saved = withContext(Dispatchers.IO) {
                     saveBitmapToGallery(bitmap, filename)
                 }
-                if (saved) {
-                    onResult(true, "已保存到相册")
-                } else {
-                    onResult(false, "保存失败")
-                }
+                onResult(saved, if (saved) "已保存到相册" else "保存失败")
             } catch (e: Exception) {
                 onResult(false, "保存失败：${e.message}")
             }
@@ -114,7 +110,7 @@ class MediaViewerViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    val url = "${com.paperbox.app.BuildConfig.API_BASE_URL}/materials-api/materials/$materialId/file"
+                    val url = "${BuildConfig.API_BASE_URL}/materials-api/materials/$materialId/file"
                     val request = Request.Builder().url(url).build()
                     val response = apiClient.okHttpClient.newCall(request).execute()
 
@@ -122,7 +118,6 @@ class MediaViewerViewModel @Inject constructor(
                         throw Exception("HTTP ${response.code}")
                     }
 
-                    // 保存到 Downloads/Paperbox
                     val downloadDir = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir
                     } else {
@@ -139,7 +134,6 @@ class MediaViewerViewModel @Inject constructor(
                         }
                     }
 
-                    // 通知媒体库扫描
                     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                         android.media.MediaScannerConnection.scanFile(
                             context, arrayOf(file.absolutePath), null, null
@@ -149,6 +143,26 @@ class MediaViewerViewModel @Inject constructor(
                 onResult(true, "已下载到 Downloads/Paperbox/")
             } catch (e: Exception) {
                 onResult(false, "下载失败：${e.message}")
+            }
+        }
+    }
+
+    /** 删除素材 */
+    fun deleteMaterial(
+        materialId: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val response = apiClient.apiService.deleteMaterial(materialId)
+                    if (!response.isSuccessful) {
+                        throw Exception("HTTP ${response.code}")
+                    }
+                }
+                onResult(true, "已删除")
+            } catch (e: Exception) {
+                onResult(false, "删除失败：${e.message}")
             }
         }
     }
