@@ -12,6 +12,8 @@ import androidx.lifecycle.viewModelScope
 import com.paperbox.app.BuildConfig
 import com.paperbox.app.data.api.ApiClient
 import com.paperbox.app.data.api.ApiService
+import com.paperbox.app.data.api.PrefsKeys
+import com.paperbox.app.data.api.dataStore
 import com.paperbox.app.data.api.models.ColorItem
 import com.paperbox.app.data.api.models.MaterialItem
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,6 +22,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -131,18 +135,27 @@ class MaterialsViewModel @Inject constructor(
         viewModelScope.launch {
             val thumbnails = mutableMapOf<String, android.graphics.Bitmap>()
             withContext(Dispatchers.IO) {
+                // 获取认证 token
+                val token = try {
+                    context.dataStore.data.map { it[PrefsKeys.TOKEN] ?: "" }.first()
+                } catch (_: Exception) { "" }
+                val headers = HashMap<String, String>()
+                if (token.isNotEmpty()) {
+                    headers["Authorization"] = "Bearer $token"
+                }
+
                 for (video in videos) {
                     try {
                         val retriever = android.media.MediaMetadataRetriever()
                         val url = "${BuildConfig.API_BASE_URL}/materials-api/materials/${video.id}/file"
-                        retriever.setDataSource(url, HashMap<String, String>())
+                        retriever.setDataSource(url, headers)
                         val bitmap = retriever.frameAtTime
                         if (bitmap != null) {
                             thumbnails[video.id] = bitmap
                         }
                         retriever.release()
-                    } catch (_: Exception) {
-                        // 缩略图提取失败，忽略
+                    } catch (e: Exception) {
+                        Log.w("MaterialsVM", "Thumbnail failed for ${video.id}: ${e.message}")
                     }
                 }
             }
