@@ -22,6 +22,7 @@ import com.paperbox.app.ui.materials.MaterialsScreen
 import com.paperbox.app.ui.media.MediaViewerScreen
 import com.paperbox.app.ui.analysis.AnalysisScreen
 import com.paperbox.app.ui.settings.SettingsScreen
+import java.net.URLDecoder
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     data object Quote : Screen("quote", "报价", Icons.Default.Calculate)
@@ -94,7 +95,10 @@ fun AppNavGraph() {
             // 素材查看/播放
             composable("media_viewer/{materialId}/{materialType}") { backStackEntry ->
                 val materialId = backStackEntry.arguments?.getString("materialId") ?: ""
-                val materialType = backStackEntry.arguments?.getString("materialType") ?: ""
+                val materialType = URLDecoder.decode(
+                    backStackEntry.arguments?.getString("materialType") ?: "",
+                    "UTF-8"
+                )
                 MediaViewerScreen(
                     materialId = materialId,
                     materialType = materialType,

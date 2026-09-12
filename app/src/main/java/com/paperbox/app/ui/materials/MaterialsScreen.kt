@@ -86,6 +86,7 @@ import coil.request.ImageRequest
 import com.paperbox.app.BuildConfig
 import com.paperbox.app.data.api.models.MaterialItem
 import androidx.navigation.NavController
+import java.net.URLEncoder
 
 // ── 类型渐变色 ──
 private object MaterialTypeColors {
@@ -394,7 +395,8 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                             MaterialGridCard(
                                 material = material,
                                 onClick = {
-                                    navController.navigate("media_viewer/${material.id}/${material.type}")
+                                    val encodedType = URLEncoder.encode(material.type, "UTF-8")
+                                    navController.navigate("media_viewer/${material.id}/$encodedType")
                                 },
                                 onMore = { viewModel.showMaterialOptions(material) }
                             )
@@ -408,7 +410,8 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                             MaterialListCard(
                                 material = material,
                                 onClick = {
-                                    navController.navigate("media_viewer/${material.id}/${material.type}")
+                                    val encodedType = URLEncoder.encode(material.type, "UTF-8")
+                                    navController.navigate("media_viewer/${material.id}/$encodedType")
                                 },
                                 onMore = { viewModel.showMaterialOptions(material) }
                             )
