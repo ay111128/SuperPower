@@ -2,7 +2,6 @@ package com.paperbox.app.data.di
 
 import android.content.Context
 import coil.ImageLoader
-import coil.request.ImageRequest
 import com.paperbox.app.data.api.ApiClient
 import com.paperbox.app.data.api.ApiService
 import dagger.Module
@@ -10,6 +9,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import okhttp3.OkHttpClient
 import javax.inject.Singleton
 
 @Module
@@ -26,6 +26,12 @@ object AppModule {
     @Singleton
     fun provideApiService(apiClient: ApiClient): ApiService {
         return apiClient.apiService
+    }
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(apiClient: ApiClient): OkHttpClient {
+        return apiClient.okHttpClient
     }
 
     @Provides

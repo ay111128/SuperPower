@@ -80,7 +80,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.AsyncImage
+import android.util.Log
+import coil.compose.SubcomposeAsyncImage
+import coil.request.ImageRequest
 import com.paperbox.app.BuildConfig
 import com.paperbox.app.data.api.models.MaterialItem
 
@@ -704,11 +706,34 @@ private fun MaterialGridCard(
             ) {
                 if (material.type == "image") {
                     // 图片类型：显示真实图片
-                    AsyncImage(
-                        model = "${BuildConfig.API_BASE_URL}/materials-api/materials/${material.id}/file",
+                    val imageUrl = "${BuildConfig.API_BASE_URL}/materials-api/materials/${material.id}/file"
+                    Log.d("MaterialsCard", "Loading image: $imageUrl")
+                    SubcomposeAsyncImage(
+                        model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                            .data(imageUrl)
+                            .crossfade(true)
+                            .build(),
                         contentDescription = material.name,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
+                        loading = {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                            }
+                        },
+                        error = { e ->
+                            Log.e("MaterialsCard", "Image load failed: $imageUrl", e)
+                            Box(
+                                modifier = Modifier.fillMaxSize().background(typeStyle.gradient),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(typeStyle.icon, contentDescription = null, modifier = Modifier.size(24.dp), tint = Color.White.copy(alpha = 0.7f))
+                                    Spacer(Modifier.height(4.dp))
+                                    Text("加载失败", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
                     )
                 } else {
                     // 非图片类型：显示渐变背景 + 类型图标
@@ -826,11 +851,18 @@ private fun MaterialListCard(
                 contentAlignment = Alignment.Center
             ) {
                 if (material.type == "image") {
-                    AsyncImage(
-                        model = "${BuildConfig.API_BASE_URL}/materials-api/materials/${material.id}/file",
+                    val imageUrl = "${BuildConfig.API_BASE_URL}/materials-api/materials/${material.id}/file"
+                    SubcomposeAsyncImage(
+                        model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                            .data(imageUrl)
+                            .crossfade(true)
+                            .build(),
                         contentDescription = material.name,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
+                        error = {
+                            Icon(typeStyle.icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = Color.White.copy(alpha = 0.9f))
+                        }
                     )
                 } else {
                     Icon(

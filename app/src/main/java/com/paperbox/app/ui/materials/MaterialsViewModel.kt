@@ -2,18 +2,24 @@ package com.paperbox.app.ui.materials
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.paperbox.app.BuildConfig
 import com.paperbox.app.data.api.ApiService
 import com.paperbox.app.data.api.models.ColorItem
 import com.paperbox.app.data.api.models.MaterialItem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
@@ -49,6 +55,7 @@ data class MaterialsUiState(
 @HiltViewModel
 class MaterialsViewModel @Inject constructor(
     private val apiService: ApiService,
+    private val okHttpClient: OkHttpClient,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -59,6 +66,8 @@ class MaterialsViewModel @Inject constructor(
         loadMaterials()
         loadColors()
         loadTags()
+        // 自动诊断：测试第一个图片素材的加载
+        diagnoseImageLoading()
     }
 
     fun loadMaterials(offset: Int = 0) {
@@ -66,7 +75,6 @@ class MaterialsViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = true)
             try {
                 val state = _uiState.value
-                val categoryParam = state.selectedCategory.ifBlank { null }
                 val tagsParam = state.selectedTags.joinToString(",").ifBlank { null }
                 val response = apiService.getMaterials(
                     color = state.selectedColor.ifBlank { null },
@@ -260,6 +268,54 @@ class MaterialsViewModel @Inject constructor(
 
     fun showToast(message: String) {
         _uiState.value = _uiState.value.copy(toastMessage = message)
+    }
+
+    // ── 诊断 ──
+
+    private fun diagnoseImageLoading() {
+        viewModelScope.launch {
+            val imageMaterials = _uiState.value.materials.filter { it.type == "image" }
+            if (imageMaterials.isEmpty()) {
+                Log.w("MaterialsVM", "No image materials to diagnose")
+                return@launch
+            }
+
+            val first = imageMaterials.first()
+            val url = "${BuildConfig.API_BASE_URL}/materials-api/materials/${first.id}/file"
+            Log.d("MaterialsVM", "=== Image Diagnosis ===")
+            Log.d("MaterialsVM", "Testing URL: $url")
+            Log.d("MaterialsVM", "Material ID: ${first.id}, Name: ${first.name}")
+
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    try {
+                        val request = Request.Builder().url(url).build()
+                        val response = okHttpClient.newCall(request).execute()
+                        val code = response.code
+                        val contentType = response.header("Content-Type")
+                        val contentLength = response.body?.contentLength() ?: 0
+                        val bodyPreview = if (code == 200) {
+                            response.body?.byteStream()?.use { stream ->
+                                val buf = ByteArray(100)
+                                val read = stream.read(buf)
+                                "First bytes: ${buf.take(read).joinToString(" ") { "%02X".format(it) }}"
+                            } ?: "empty"
+                        } else {
+                            response.body?.string()?.take(200) ?: "empty"
+                        }
+                        response.close()
+                        "HTTP $code | Content-Type: $contentType | Size: $contentLength | $bodyPreview"
+                    } catch (e: Exception) {
+                        "ERROR: ${e.javaClass.simpleName}: ${e.message}"
+                    }
+                }
+                Log.d("MaterialsVM", "Diagnosis result: $result")
+                _uiState.value = _uiState.value.copy(toastMessage = "图片诊断: $result")
+            } catch (e: Exception) {
+                Log.e("MaterialsVM", "Diagnosis failed", e)
+                _uiState.value = _uiState.value.copy(toastMessage = "诊断失败: ${e.message}")
+            }
+        }
     }
 
     fun uploadFiles(uris: List<Uri>) {
