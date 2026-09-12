@@ -44,6 +44,7 @@ fun ZoomableImage(
                 translationX = offsetX,
                 translationY = offsetY
             )
+            // 先检测双指缩放，再检测单击手势
             .transformable(state = transformState)
             .pointerInput(Unit) {
                 detectTapGestures(

@@ -100,15 +100,18 @@ fun MediaViewerScreen(
                     window.navigationBarColor = android.graphics.Color.BLACK
                 }
                 VIEW_FULLSCREEN, VIEW_PURE -> {
-                    // 全屏/纯净：隐藏系统栏
+                    // 全屏/纯净：隐藏系统栏（包括导航栏指示条）
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         val controller = window.insetsController
                         controller?.hide(
                             android.view.WindowInsets.Type.statusBars() or
-                            android.view.WindowInsets.Type.navigationBars()
+                            android.view.WindowInsets.Type.navigationBars() or
+                            android.view.WindowInsets.Type.systemBars()
                         )
                         controller?.systemBarsBehavior =
                             android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        // 设置导航栏颜色为透明，隐藏导航指示条
+                        window.navigationBarColor = android.graphics.Color.TRANSPARENT
                     } else {
                         @Suppress("DEPRECATION")
                         window.decorView.systemUiVisibility = (
