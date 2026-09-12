@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paperbox.app.BuildConfig
+import com.paperbox.app.data.api.ApiClient
 import com.paperbox.app.data.api.ApiService
 import com.paperbox.app.data.api.models.ColorItem
 import com.paperbox.app.data.api.models.MaterialItem
@@ -55,6 +56,7 @@ data class MaterialsUiState(
 @HiltViewModel
 class MaterialsViewModel @Inject constructor(
     private val apiService: ApiService,
+    private val apiClient: ApiClient,
     private val okHttpClient: OkHttpClient,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
@@ -272,19 +274,22 @@ class MaterialsViewModel @Inject constructor(
 
     // ── 诊断 ──
 
+    private fun diagLog(message: String) {
+        Log.d("MaterialsVM", message)
+        try { apiClient.uploadDiagLog(message) } catch (_: Exception) {}
+    }
+
     private fun diagnoseImageLoading() {
         viewModelScope.launch {
             val imageMaterials = _uiState.value.materials.filter { it.type == "image" }
             if (imageMaterials.isEmpty()) {
-                Log.w("MaterialsVM", "No image materials to diagnose")
+                diagLog("No image materials to diagnose")
                 return@launch
             }
 
             val first = imageMaterials.first()
             val url = "${BuildConfig.API_BASE_URL}/materials-api/materials/${first.id}/file"
-            Log.d("MaterialsVM", "=== Image Diagnosis ===")
-            Log.d("MaterialsVM", "Testing URL: $url")
-            Log.d("MaterialsVM", "Material ID: ${first.id}, Name: ${first.name}")
+            diagLog("=== Image Diagnosis === URL: $url | ID: ${first.id} | Name: ${first.name}")
 
             try {
                 val result = withContext(Dispatchers.IO) {
@@ -304,16 +309,14 @@ class MaterialsViewModel @Inject constructor(
                             response.body?.string()?.take(200) ?: "empty"
                         }
                         response.close()
-                        "HTTP $code | Content-Type: $contentType | Size: $contentLength | $bodyPreview"
+                        "HTTP $code | CT: $contentType | Size: $contentLength | $bodyPreview"
                     } catch (e: Exception) {
                         "ERROR: ${e.javaClass.simpleName}: ${e.message}"
                     }
                 }
-                Log.d("MaterialsVM", "Diagnosis result: $result")
-                _uiState.value = _uiState.value.copy(toastMessage = "图片诊断: $result")
+                diagLog("Diagnosis result: $result")
             } catch (e: Exception) {
-                Log.e("MaterialsVM", "Diagnosis failed", e)
-                _uiState.value = _uiState.value.copy(toastMessage = "诊断失败: ${e.message}")
+                diagLog("Diagnosis exception: ${e.message}")
             }
         }
     }
