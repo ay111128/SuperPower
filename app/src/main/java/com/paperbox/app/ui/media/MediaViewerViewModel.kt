@@ -47,8 +47,7 @@ class MediaViewerViewModel @Inject constructor(
                     val response = apiClient.okHttpClient.newCall(request).execute()
 
                     if (!response.isSuccessful) {
-                        @Suppress("DEPRECATION")
-                        throw Exception("HTTP ${response.code()}")
+                        throw Exception("HTTP ${response.code}")
                     }
 
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
