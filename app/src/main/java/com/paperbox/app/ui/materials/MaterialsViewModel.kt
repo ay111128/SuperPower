@@ -23,10 +23,26 @@ data class MaterialsUiState(
     val materials: List<MaterialItem> = emptyList(),
     val total: Int = 0,
     val colors: List<ColorItem> = emptyList(),
+    val tags: List<String> = emptyList(),
+    // 筛选
     val selectedColor: String = "",
+    val selectedCategory: String = "all",
+    val selectedTags: Set<String> = emptySet(),
     val searchQuery: String = "",
+    // 布局
+    val layoutMode: String = "grid", // "grid" or "list"
+    // 弹窗状态
+    val showSearchDialog: Boolean = false,
+    val showUploadSheet: Boolean = false,
+    val showMoreSheet: Boolean = false,
+    val showTagDialog: Boolean = false,
+    val showDeleteDialog: Boolean = false,
+    val selectedMaterial: MaterialItem? = null,
+    val tagDraft: Set<String> = emptySet(),
+    // 消息
     val isLoading: Boolean = false,
     val uploadSuccess: Int = 0,
+    val toastMessage: String? = null,
     val errorMessage: String? = null
 )
 
@@ -42,15 +58,20 @@ class MaterialsViewModel @Inject constructor(
     init {
         loadMaterials()
         loadColors()
+        loadTags()
     }
 
     fun loadMaterials(offset: Int = 0) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             try {
+                val state = _uiState.value
+                val categoryParam = state.selectedCategory.ifBlank { null }
+                val tagsParam = state.selectedTags.joinToString(",").ifBlank { null }
                 val response = apiService.getMaterials(
-                    color = _uiState.value.selectedColor.ifBlank { null },
-                    query = _uiState.value.searchQuery.ifBlank { null },
+                    color = state.selectedColor.ifBlank { null },
+                    tags = tagsParam,
+                    query = state.searchQuery.ifBlank { null },
                     limit = 50,
                     offset = offset
                 )
@@ -82,9 +103,37 @@ class MaterialsViewModel @Inject constructor(
         }
     }
 
+    private fun loadTags() {
+        viewModelScope.launch {
+            try {
+                val response = apiService.getTags()
+                if (response.isSuccessful) {
+                    _uiState.value = _uiState.value.copy(tags = response.body()!!.tags)
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
     fun selectColor(color: String) {
         _uiState.value = _uiState.value.copy(selectedColor = color)
         loadMaterials()
+    }
+
+    fun selectCategory(category: String) {
+        _uiState.value = _uiState.value.copy(selectedCategory = category)
+        loadMaterials()
+    }
+
+    fun toggleTag(tag: String) {
+        val current = _uiState.value.selectedTags.toMutableSet()
+        if (current.contains(tag)) current.remove(tag) else current.add(tag)
+        _uiState.value = _uiState.value.copy(selectedTags = current)
+        loadMaterials()
+    }
+
+    fun toggleLayout() {
+        val newMode = if (_uiState.value.layoutMode == "grid") "list" else "grid"
+        _uiState.value = _uiState.value.copy(layoutMode = newMode)
     }
 
     fun updateSearch(query: String) {
@@ -92,22 +141,130 @@ class MaterialsViewModel @Inject constructor(
         loadMaterials()
     }
 
-    fun deleteMaterial(id: String) {
+    // ── 弹窗控制 ──
+
+    fun showSearchDialog() {
+        _uiState.value = _uiState.value.copy(showSearchDialog = true)
+    }
+
+    fun dismissSearchDialog() {
+        _uiState.value = _uiState.value.copy(showSearchDialog = false)
+    }
+
+    fun showUploadSheet() {
+        _uiState.value = _uiState.value.copy(showUploadSheet = true)
+    }
+
+    fun dismissUploadSheet() {
+        _uiState.value = _uiState.value.copy(showUploadSheet = false)
+    }
+
+    fun showMaterialOptions(material: MaterialItem) {
+        _uiState.value = _uiState.value.copy(
+            showMoreSheet = true,
+            selectedMaterial = material
+        )
+    }
+
+    fun dismissMoreSheet() {
+        _uiState.value = _uiState.value.copy(showMoreSheet = false)
+    }
+
+    fun showTagDialogForMaterial() {
+        val material = _uiState.value.selectedMaterial ?: return
+        _uiState.value = _uiState.value.copy(
+            showMoreSheet = false,
+            showTagDialog = true,
+            tagDraft = material.tags.toSet()
+        )
+    }
+
+    fun toggleTagDraft(tag: String) {
+        val current = _uiState.value.tagDraft.toMutableSet()
+        if (current.contains(tag)) current.remove(tag) else current.add(tag)
+        _uiState.value = _uiState.value.copy(tagDraft = current)
+    }
+
+    fun dismissTagDialog() {
+        _uiState.value = _uiState.value.copy(showTagDialog = false)
+    }
+
+    fun saveMaterialTags() {
+        val material = _uiState.value.selectedMaterial ?: return
+        val tags = _uiState.value.tagDraft.toList()
         viewModelScope.launch {
             try {
-                val response = apiService.deleteMaterial(id)
+                val response = apiService.updateMaterial(
+                    material.id,
+                    mapOf("tags" to tags)
+                )
                 if (response.isSuccessful) {
+                    _uiState.value = _uiState.value.copy(
+                        showTagDialog = false,
+                        toastMessage = "标签已更新"
+                    )
                     loadMaterials()
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(errorMessage = "删除失败：${e.message}")
+                _uiState.value = _uiState.value.copy(
+                    toastMessage = "更新失败：${e.message}"
+                )
             }
         }
     }
 
+    fun showDeleteDialog() {
+        _uiState.value = _uiState.value.copy(
+            showMoreSheet = false,
+            showDeleteDialog = true
+        )
+    }
+
+    fun dismissDeleteDialog() {
+        _uiState.value = _uiState.value.copy(showDeleteDialog = false)
+    }
+
+    fun confirmDelete() {
+        val material = _uiState.value.selectedMaterial ?: return
+        viewModelScope.launch {
+            try {
+                val response = apiService.deleteMaterial(material.id)
+                if (response.isSuccessful) {
+                    _uiState.value = _uiState.value.copy(
+                        showDeleteDialog = false,
+                        toastMessage = "已删除"
+                    )
+                    loadMaterials()
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    toastMessage = "删除失败：${e.message}"
+                )
+            }
+        }
+    }
+
+    // ── 操作 ──
+
+    fun downloadMaterial() {
+        val material = _uiState.value.selectedMaterial ?: return
+        _uiState.value = _uiState.value.copy(
+            showMoreSheet = false,
+            toastMessage = "开始下载「${material.name}」"
+        )
+    }
+
+    fun clearMessages() {
+        _uiState.value = _uiState.value.copy(errorMessage = null, uploadSuccess = 0, toastMessage = null)
+    }
+
+    fun showToast(message: String) {
+        _uiState.value = _uiState.value.copy(toastMessage = message)
+    }
+
     fun uploadFiles(uris: List<Uri>) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.value = _uiState.value.copy(isLoading = true, showUploadSheet = false)
             try {
                 val parts = uris.mapNotNull { uri ->
                     val inputStream = context.contentResolver.openInputStream(uri) ?: return@mapNotNull null
@@ -127,7 +284,8 @@ class MaterialsViewModel @Inject constructor(
                     val body = response.body()!!
                     _uiState.value = _uiState.value.copy(
                         uploadSuccess = body.created.size,
-                        isLoading = false
+                        isLoading = false,
+                        toastMessage = "成功上传 ${body.created.size} 个文件"
                     )
                     loadMaterials()
                 } else {
@@ -143,9 +301,5 @@ class MaterialsViewModel @Inject constructor(
                 )
             }
         }
-    }
-
-    fun clearMessages() {
-        _uiState.value = _uiState.value.copy(errorMessage = null, uploadSuccess = 0)
     }
 }
