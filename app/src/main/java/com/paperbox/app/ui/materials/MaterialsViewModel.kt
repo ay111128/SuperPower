@@ -68,8 +68,6 @@ class MaterialsViewModel @Inject constructor(
         loadMaterials()
         loadColors()
         loadTags()
-        // 自动诊断：测试第一个图片素材的加载
-        diagnoseImageLoading()
     }
 
     fun loadMaterials(offset: Int = 0) {
@@ -92,6 +90,11 @@ class MaterialsViewModel @Inject constructor(
                         total = body.total,
                         isLoading = false
                     )
+                    // 日志：打印所有素材类型
+                    body.items.forEach { m ->
+                        diagLog("Material: id=${m.id} type='${m.type}' name='${m.name}'")
+                    }
+                    diagnoseImageLoading()
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -281,15 +284,15 @@ class MaterialsViewModel @Inject constructor(
 
     private fun diagnoseImageLoading() {
         viewModelScope.launch {
-            val imageMaterials = _uiState.value.materials.filter { it.type == "image" }
-            if (imageMaterials.isEmpty()) {
-                diagLog("No image materials to diagnose")
+            val materials = _uiState.value.materials
+            if (materials.isEmpty()) {
+                diagLog("No materials to diagnose")
                 return@launch
             }
 
-            val first = imageMaterials.first()
+            val first = materials.first()
             val url = "${BuildConfig.API_BASE_URL}/materials-api/materials/${first.id}/file"
-            diagLog("=== Image Diagnosis === URL: $url | ID: ${first.id} | Name: ${first.name}")
+            diagLog("=== Diagnosis === URL: $url | ID: ${first.id} | type: '${first.type}' | Name: ${first.name}")
 
             val result = withContext(Dispatchers.IO) {
                 try {
