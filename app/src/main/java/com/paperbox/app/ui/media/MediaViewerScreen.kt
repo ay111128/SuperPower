@@ -36,12 +36,16 @@ import androidx.compose.ui.platform.LocalContext
 fun MediaViewerScreen(
     materialId: String,
     materialType: String,
-    materialName: String,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
 
     val fileUrl = "${BuildConfig.API_BASE_URL}/materials-api/materials/$materialId/file"
+    val title = when {
+        materialType.startsWith("image") -> "图片查看"
+        materialType.startsWith("video") -> "视频播放"
+        else -> "文件预览"
+    }
 
     Scaffold(
         containerColor = Color.Black,
@@ -49,7 +53,7 @@ fun MediaViewerScreen(
             TopAppBar(
                 title = {
                     Text(
-                        materialName,
+                        title,
                         color = Color.White,
                         style = MaterialTheme.typography.titleMedium
                     )
@@ -83,7 +87,7 @@ fun MediaViewerScreen(
                             .data(fileUrl)
                             .crossfade(true)
                             .build(),
-                        contentDescription = materialName,
+                        contentDescription = "图片",
                         modifier = Modifier.fillMaxSize()
                     )
                 }
