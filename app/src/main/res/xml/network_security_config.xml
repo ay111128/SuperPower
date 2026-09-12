@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- IP 直连：信任自签名证书 -->
+    <!-- IP 直连：信任自签名证书（同时信任系统证书） -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">101.133.169.230</domain>
         <trust-anchors>
+            <certificates src="system" />
             <certificates src="@raw/ip_cert" />
         </trust-anchors>
     </domain-config>
