@@ -1,6 +1,7 @@
 package com.paperbox.app.ui.media
 
 import android.app.Activity
+import android.content.Context
 import android.os.Build
 import android.view.GestureDetector
 import android.view.MotionEvent
