@@ -721,8 +721,8 @@ private fun MaterialGridCard(
                                 CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
                             }
                         },
-                        error = { e ->
-                            Log.e("MaterialsCard", "Image load failed: $imageUrl", e)
+                        error = {
+                            Log.e("MaterialsCard", "Image load failed: $imageUrl")
                             Box(
                                 modifier = Modifier.fillMaxSize().background(typeStyle.gradient),
                                 contentAlignment = Alignment.Center
