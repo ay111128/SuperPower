@@ -19,8 +19,11 @@ import com.paperbox.app.ui.auth.LoginScreen
 import com.paperbox.app.ui.quote.QuoteScreen
 import com.paperbox.app.ui.sizeguide.SizeGuideScreen
 import com.paperbox.app.ui.materials.MaterialsScreen
+import com.paperbox.app.ui.media.MediaViewerScreen
 import com.paperbox.app.ui.analysis.AnalysisScreen
 import com.paperbox.app.ui.settings.SettingsScreen
+import java.net.URLDecoder
+import java.net.URLEncoder
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     data object Quote : Screen("quote", "报价", Icons.Default.Calculate)
@@ -86,9 +89,25 @@ fun AppNavGraph() {
         ) {
             composable(Screen.Quote.route) { QuoteScreen() }
             composable(Screen.SizeGuide.route) { SizeGuideScreen() }
-            composable(Screen.Materials.route) { MaterialsScreen() }
+            composable(Screen.Materials.route) { MaterialsScreen(navController = navController) }
             composable(Screen.Analysis.route) { AnalysisScreen() }
             composable(Screen.Settings.route) { SettingsScreen() }
+
+            // 素材查看/播放
+            composable("media_viewer/{materialId}/{materialType}/{materialName}") { backStackEntry ->
+                val materialId = backStackEntry.arguments?.getString("materialId") ?: ""
+                val materialType = backStackEntry.arguments?.getString("materialType") ?: ""
+                val materialName = URLDecoder.decode(
+                    backStackEntry.arguments?.getString("materialName") ?: "",
+                    "UTF-8"
+                )
+                MediaViewerScreen(
+                    materialId = materialId,
+                    materialType = materialType,
+                    materialName = materialName,
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
     }
 }

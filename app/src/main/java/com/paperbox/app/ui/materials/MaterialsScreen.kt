@@ -85,6 +85,8 @@ import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.paperbox.app.BuildConfig
 import com.paperbox.app.data.api.models.MaterialItem
+import java.net.URLEncoder
+import androidx.navigation.NavController
 
 // ── 类型渐变色 ──
 private object MaterialTypeColors {
@@ -137,7 +139,7 @@ private fun formatSize(bytes: Long): String = when {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun MaterialsScreen(viewModel: MaterialsViewModel = hiltViewModel()) {
+fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -392,7 +394,10 @@ fun MaterialsScreen(viewModel: MaterialsViewModel = hiltViewModel()) {
                         items(state.materials, key = { it.id }) { material ->
                             MaterialGridCard(
                                 material = material,
-                                onClick = { viewModel.showToast("打开素材：${material.name}") },
+                                onClick = {
+                                    val encodedName = URLEncoder.encode(material.name, "UTF-8")
+                                    navController.navigate("media_viewer/${material.id}/${material.type}/$encodedName")
+                                },
                                 onMore = { viewModel.showMaterialOptions(material) }
                             )
                         }
@@ -404,7 +409,10 @@ fun MaterialsScreen(viewModel: MaterialsViewModel = hiltViewModel()) {
                         items(state.materials, key = { it.id }) { material ->
                             MaterialListCard(
                                 material = material,
-                                onClick = { viewModel.showToast("打开素材：${material.name}") },
+                                onClick = {
+                                    val encodedName = URLEncoder.encode(material.name, "UTF-8")
+                                    navController.navigate("media_viewer/${material.id}/${material.type}/$encodedName")
+                                },
                                 onMore = { viewModel.showMaterialOptions(material) }
                             )
                         }
