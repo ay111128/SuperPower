@@ -6,10 +6,8 @@ import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.ImageView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -215,9 +213,12 @@ fun MediaViewerScreen(
                         .padding(padding)
                         .fillMaxSize()
                         .background(Color.Black)
-                        .clickable { viewState = VIEW_FULLSCREEN }
                 ) {
-                    MediaContent(materialType, fileUrl, viewModel, showMenu) { showMenu = true }
+                    MediaContent(
+                        materialType, fileUrl, viewModel, showMenu,
+                        onTap = { viewState = VIEW_FULLSCREEN },
+                        onLongPress = { showMenu = true }
+                    )
                 }
             }
         }
@@ -229,13 +230,11 @@ fun MediaViewerScreen(
                     .background(Color.Black)
             ) {
                 // 内容铺满全屏
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable { viewState = VIEW_PURE }
-                ) {
-                    MediaContent(materialType, fileUrl, viewModel, showMenu) { showMenu = true }
-                }
+                MediaContent(
+                    materialType, fileUrl, viewModel, showMenu,
+                    onTap = { viewState = VIEW_PURE },
+                    onLongPress = { showMenu = true }
+                )
                 // 返回键浮层（半透明背景）
                 Box(
                     modifier = Modifier
@@ -261,9 +260,12 @@ fun MediaViewerScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black)
-                    .clickable { viewState = VIEW_FULLSCREEN }
             ) {
-                MediaContent(materialType, fileUrl, viewModel, showMenu) { showMenu = true }
+                MediaContent(
+                    materialType, fileUrl, viewModel, showMenu,
+                    onTap = { viewState = VIEW_FULLSCREEN },
+                    onLongPress = { showMenu = true }
+                )
             }
         }
     }
@@ -275,6 +277,7 @@ private fun MediaContent(
     fileUrl: String,
     viewModel: MediaViewerViewModel,
     showMenu: Boolean,
+    onTap: () -> Unit,
     onLongPress: () -> Unit
 ) {
     when {
@@ -284,6 +287,7 @@ private fun MediaContent(
                     .data(fileUrl).crossfade(true).build(),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
+                onTap = onTap,
                 onLongPress = onLongPress
             )
         }
@@ -292,7 +296,8 @@ private fun MediaContent(
                 url = fileUrl,
                 okHttpClient = viewModel.okHttpClient,
                 modifier = Modifier.fillMaxSize(),
-                onLongPress = onLongPress
+                onLongPress = onLongPress,
+                onTap = onTap
             )
         }
         else -> {
@@ -319,7 +324,8 @@ private fun VideoPlayer(
     url: String,
     okHttpClient: okhttp3.OkHttpClient,
     modifier: Modifier = Modifier,
-    onLongPress: (() -> Unit)? = null
+    onLongPress: (() -> Unit)? = null,
+    onTap: (() -> Unit)? = null
 ) {
     AndroidView(
         factory = { ctx ->
@@ -359,10 +365,15 @@ private fun VideoPlayer(
 
             playerView.player = exoPlayer
 
-            // 长按检测 - 在 container 上检测
+            // 长按检测
             container.setOnLongClickListener {
                 onLongPress?.invoke()
                 true
+            }
+
+            // 单击检测
+            container.setOnClickListener {
+                onTap?.invoke()
             }
 
             container.addView(playerView)

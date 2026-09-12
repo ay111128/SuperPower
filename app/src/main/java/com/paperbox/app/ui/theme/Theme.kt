@@ -7,11 +7,11 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// 品牌色
-val Primary = Color(0xFF8B5E3C)       // 牛皮纸棕
-val PrimaryDark = Color(0xFF6B4226)
-val Secondary = Color(0xFFD4A574)     // 浅棕
-val Background = Color(0xFFF8F5F0)    // 米白
+// 品牌色 - 蓝色主题
+val Primary = Color(0xFF1976D2)       // 蓝色
+val PrimaryDark = Color(0xFF0D47A1)
+val Secondary = Color(0xFF64B5F6)     // 浅蓝
+val Background = Color(0xFFF5F5F5)    // 浅灰白
 val Surface = Color(0xFFFFFFFF)
 val OnPrimary = Color(0xFFFFFFFF)
 val OnBackground = Color(0xFF1A1A1A)

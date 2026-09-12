@@ -20,6 +20,7 @@ fun ZoomableImage(
     model: Any?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
+    onTap: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
@@ -46,6 +47,7 @@ fun ZoomableImage(
             .transformable(state = transformState)
             .pointerInput(Unit) {
                 detectTapGestures(
+                    onTap = { onTap?.invoke() },
                     onDoubleTap = { tapOffset ->
                         if (scale > 1.5f) {
                             scale = 1f
