@@ -115,7 +115,7 @@ class MediaViewerViewModel @Inject constructor(
                     val response = apiClient.okHttpClient.newCall(request).execute()
 
                     if (!response.isSuccessful) {
-                        throw Exception("HTTP ${response.code()}")
+                        throw Exception("HTTP ${response.code}")
                     }
 
                     val downloadDir = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -157,7 +157,7 @@ class MediaViewerViewModel @Inject constructor(
                 withContext(Dispatchers.IO) {
                     val response = apiClient.apiService.deleteMaterial(materialId)
                     if (!response.isSuccessful) {
-                        throw Exception("HTTP ${response.code()}")
+                        throw Exception("HTTP ${response.code}")
                     }
                 }
                 onResult(true, "已删除")
