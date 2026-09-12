@@ -51,6 +51,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -102,12 +103,12 @@ private object MaterialTypeColors {
         "zip" -> TypeStyle(
             "压缩包",
             Brush.linearGradient(listOf(Color(0xFF8AA0C8), Color(0xFF4C5C7E))),
-            Icons.Default.FolderZip
+            Icons.Default.Archive
         )
         else -> TypeStyle(
             "其他",
             Brush.linearGradient(listOf(Color(0xFFB0B8C8), Color(0xFF7A849A))),
-            Icons.Default.InsertDriveFile
+            Icons.Default.Description
         )
     }
 }
