@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Label
@@ -103,7 +104,7 @@ private object MaterialTypeColors {
         "zip" -> TypeStyle(
             "压缩包",
             Brush.linearGradient(listOf(Color(0xFF8AA0C8), Color(0xFF4C5C7E))),
-            Icons.Default.Archive
+            Icons.Default.Folder
         )
         else -> TypeStyle(
             "其他",
