@@ -2,15 +2,21 @@ package com.paperbox.app.ui.media
 
 import android.app.Activity
 import android.os.Build
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
@@ -35,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -64,14 +71,15 @@ fun MediaViewerScreen(
     var showMenu by remember { mutableStateOf(false) }
     var isFullscreen by remember { mutableStateOf(false) }
 
-    // 全屏控制
+    // 全屏控制 - 使用 enableEdgeToEdge 思路
     DisposableEffect(isFullscreen) {
         val activity = context as? Activity
         if (activity != null) {
+            val window = activity.window
             if (isFullscreen) {
-                // 全屏：隐藏所有系统栏
+                // 全屏：隐藏所有系统栏，内容延伸到状态栏后面
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    val controller = activity.window.insetsController
+                    val controller = window.insetsController
                     controller?.hide(
                         android.view.WindowInsets.Type.statusBars() or
                         android.view.WindowInsets.Type.navigationBars()
@@ -80,7 +88,7 @@ fun MediaViewerScreen(
                         android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 } else {
                     @Suppress("DEPRECATION")
-                    activity.window.decorView.systemUiVisibility = (
+                    window.decorView.systemUiVisibility = (
                         View.SYSTEM_UI_FLAG_FULLSCREEN or
                         View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
                         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
@@ -89,24 +97,40 @@ fun MediaViewerScreen(
                         View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                     )
                 }
-                activity.window.statusBarColor = android.graphics.Color.TRANSPARENT
-                activity.window.navigationBarColor = android.graphics.Color.TRANSPARENT
+                window.statusBarColor = android.graphics.Color.TRANSPARENT
+                window.navigationBarColor = android.graphics.Color.TRANSPARENT
             } else {
                 // 恢复系统栏
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    activity.window.insetsController?.show(
+                    window.insetsController?.show(
                         android.view.WindowInsets.Type.statusBars() or
                         android.view.WindowInsets.Type.navigationBars()
                     )
                 } else {
                     @Suppress("DEPRECATION")
-                    activity.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+                    window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
                 }
-                activity.window.statusBarColor = android.graphics.Color.BLACK
-                activity.window.navigationBarColor = android.graphics.Color.BLACK
+                window.statusBarColor = android.graphics.Color.BLACK
+                window.navigationBarColor = android.graphics.Color.BLACK
             }
         }
-        onDispose {}
+        onDispose {
+            // 确保退出时恢复
+            val act = context as? Activity
+            if (act != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    act.window.insetsController?.show(
+                        android.view.WindowInsets.Type.statusBars() or
+                        android.view.WindowInsets.Type.navigationBars()
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    act.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+                }
+                act.window.statusBarColor = android.graphics.Color.BLACK
+                act.window.navigationBarColor = android.graphics.Color.BLACK
+            }
+        }
     }
 
     // 长按菜单弹窗
@@ -119,7 +143,7 @@ fun MediaViewerScreen(
                 TextButton(onClick = {
                     showMenu = false
                     scope.launch {
-                        val ext = if (materialType.contains("png")) ".png" else ".jpg"
+                        val ext = if (materialType.contains("png")) ".png" else if (materialType.contains("video")) ".mp4" else ".jpg"
                         viewModel.downloadFile(
                             materialId = materialId,
                             filename = "${materialId}$ext",
@@ -151,7 +175,7 @@ fun MediaViewerScreen(
     }
 
     if (isFullscreen) {
-        // 全屏模式：纯素材，点击退出
+        // 全屏模式：纯素材，无系统栏，内容延伸到状态栏后面
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -179,7 +203,7 @@ fun MediaViewerScreen(
             }
         }
     } else {
-        // 普通模式：有返回栏
+        // 普通模式：有返回栏，状态栏区域填充 padding
         Scaffold(
             containerColor = Color.Black,
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -244,6 +268,9 @@ fun MediaViewerScreen(
     }
 }
 
+/**
+ * 极简视频播放器：只有播放/暂停按钮，支持长按手势
+ */
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun VideoPlayer(
@@ -252,16 +279,41 @@ private fun VideoPlayer(
     modifier: Modifier = Modifier,
     onLongPress: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
+
     AndroidView(
         factory = { ctx ->
+            // 自定义 FrameLayout 包含 PlayerView + 播放按钮覆盖层
+            val container = FrameLayout(ctx).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                setBackgroundColor(android.graphics.Color.BLACK)
+            }
+
+            // PlayerView - 隐藏默认控制器
             val playerView = PlayerView(ctx).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
-                useController = true
+                useController = false // 不使用默认控制器
+                setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
             }
 
+            // 播放/暂停按钮
+            val playButton = ImageView(ctx).apply {
+                layoutParams = FrameLayout.LayoutParams(72.dpToPx(ctx), 72.dpToPx(ctx)).apply {
+                    gravity = android.view.Gravity.CENTER
+                }
+                setImageResource(android.R.drawable.ic_media_play)
+                setPadding(16.dpToPx(ctx), 16.dpToPx(ctx), 16.dpToPx(ctx), 16.dpToPx(ctx))
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                alpha = 0.8f
+            }
+
+            // 创建 ExoPlayer
             val dataSourceFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
             val exoPlayer = ExoPlayer.Builder(ctx)
                 .setMediaSourceFactory(
@@ -272,11 +324,63 @@ private fun VideoPlayer(
             val mediaItem = MediaItem.fromUri(android.net.Uri.parse(url))
             exoPlayer.setMediaItem(mediaItem)
             exoPlayer.prepare()
-            exoPlayer.playWhenReady = true
 
-            playerView.player = exoPlayer
-            playerView.tag = exoPlayer
-            playerView
+            // 播放/暂停切换
+            val togglePlayPause = {
+                if (exoPlayer.isPlaying) {
+                    exoPlayer.pause()
+                    playButton.setImageResource(android.R.drawable.ic_media_play)
+                } else {
+                    exoPlayer.playWhenReady = true
+                    exoPlayer.play()
+                    playButton.setImageResource(android.R.drawable.ic_media_pause)
+                }
+            }
+
+            playButton.setOnClickListener { togglePlayPause() }
+
+            // 监听播放状态，自动隐藏/显示按钮
+            exoPlayer.addListener(object : androidx.media3.common.Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    playButton.setImageResource(
+                        if (isPlaying) android.R.drawable.ic_media_pause
+                        else android.R.drawable.ic_media_play
+                    )
+                    // 播放时淡出按钮
+                    playButton.animate()
+                        .alpha(if (isPlaying) 0f else 0.8f)
+                        .setDuration(300)
+                        .start()
+                }
+            })
+
+            // 点击屏幕切换播放/暂停 + 显示按钮
+            playerView.setOnClickListener {
+                togglePlayPause()
+                playButton.animate().alpha(0.8f).setDuration(100).start()
+            }
+
+            // 长按手势检测
+            val longPressListener = object : GestureDetector.SimpleOnGestureListener() {
+                override fun onLongPress(e: MotionEvent) {
+                    onLongPress?.invoke()
+                }
+            }
+            val gestureDetector = GestureDetector(ctx, longPressListener)
+
+            playerView.setOnTouchListener { _, event ->
+                gestureDetector.onTouchEvent(event)
+                true // 消费所有触摸事件以检测长按
+            }
+
+            // 组装视图层级
+            container.addView(playerView)
+            container.addView(playButton)
+
+            // 保存引用以便释放
+            container.tag = exoPlayer
+
+            container
         },
         modifier = modifier,
         onRelease = { view ->
@@ -285,3 +389,7 @@ private fun VideoPlayer(
         }
     )
 }
+
+/** dp 转 px 扩展函数 */
+private fun Int.dpToPx(context: Context): Int =
+    (this * context.resources.displayMetrics.density).toInt()
