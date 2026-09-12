@@ -127,7 +127,7 @@ class MaterialsViewModel @Inject constructor(
         }
     }
 
-    /** 异步提取视频缩略图 */
+    /** 异步提取视频缩略图（带磁盘缓存） */
     private fun loadVideoThumbnails(materials: List<MaterialItem>) {
         val videos = materials.filter { it.type.startsWith("video") }
         if (videos.isEmpty()) return
@@ -144,14 +144,39 @@ class MaterialsViewModel @Inject constructor(
                     headers["Authorization"] = "Bearer $token"
                 }
 
+                // 缓存目录
+                val cacheDir = File(context.cacheDir, "video_thumbnails")
+                cacheDir.mkdirs()
+
                 for (video in videos) {
                     try {
+                        // 1. 先检查磁盘缓存
+                        val cacheFile = File(cacheDir, "${video.id}.jpg")
+                        if (cacheFile.exists()) {
+                            val cachedBitmap = android.graphics.BitmapFactory.decodeFile(cacheFile.absolutePath)
+                            if (cachedBitmap != null) {
+                                thumbnails[video.id] = cachedBitmap
+                                Log.d("MaterialsVM", "Thumbnail loaded from cache: ${video.id}")
+                                continue
+                            }
+                        }
+
+                        // 2. 缓存未命中，从网络提取
                         val retriever = android.media.MediaMetadataRetriever()
                         val url = "${BuildConfig.API_BASE_URL}/materials-api/materials/${video.id}/file"
                         retriever.setDataSource(url, headers)
                         val bitmap = retriever.frameAtTime
                         if (bitmap != null) {
                             thumbnails[video.id] = bitmap
+                            // 3. 保存到磁盘缓存
+                            try {
+                                cacheFile.outputStream().use { out ->
+                                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+                                }
+                                Log.d("MaterialsVM", "Thumbnail saved to cache: ${video.id}")
+                            } catch (e: Exception) {
+                                Log.w("MaterialsVM", "Failed to cache thumbnail: ${e.message}")
+                            }
                         }
                         retriever.release()
                     } catch (e: Exception) {

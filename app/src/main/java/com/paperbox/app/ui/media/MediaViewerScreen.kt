@@ -69,12 +69,12 @@ fun MediaViewerScreen(
     val fileUrl = "${BuildConfig.API_BASE_URL}/materials-api/materials/$materialId/file"
 
     var showMenu by remember { mutableStateOf(false) }
-    var viewState by remember { mutableIntStateOf(VIEW_NORMAL) }
+    var viewState by remember { mutableIntStateOf(VIEW_FULLSCREEN) }
 
     BackHandler {
         when (viewState) {
             VIEW_PURE -> viewState = VIEW_FULLSCREEN
-            VIEW_FULLSCREEN -> viewState = VIEW_NORMAL
+            VIEW_FULLSCREEN -> onBack()
             else -> onBack()
         }
     }
