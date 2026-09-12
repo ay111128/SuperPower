@@ -157,7 +157,9 @@ class MediaViewerViewModel @Inject constructor(
                 withContext(Dispatchers.IO) {
                     val response = apiClient.apiService.deleteMaterial(materialId)
                     if (!response.isSuccessful) {
-                        throw Exception("HTTP ${response.code}")
+                        @Suppress("DEPRECATION")
+                        val code = response.code()
+                        throw Exception("HTTP $code")
                     }
                 }
                 onResult(true, "已删除")
