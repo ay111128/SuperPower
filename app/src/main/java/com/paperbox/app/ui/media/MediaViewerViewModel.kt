@@ -105,6 +105,7 @@ class MediaViewerViewModel @Inject constructor(
     fun downloadFile(
         materialId: String,
         filename: String,
+        saveAsOriginal: Boolean = false,
         onResult: (Boolean, String) -> Unit
     ) {
         viewModelScope.launch {
@@ -128,6 +129,7 @@ class MediaViewerViewModel @Inject constructor(
                     paperboxDir.mkdirs()
                     val file = File(paperboxDir, filename)
 
+                    // 直接保存原始字节流，不进行任何压缩或格式转换
                     response.body?.byteStream()?.use { input ->
                         file.outputStream().use { output ->
                             input.copyTo(output)

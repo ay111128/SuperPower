@@ -772,13 +772,6 @@ private fun MaterialGridCard(
 
             // 信息区
             Column(modifier = Modifier.padding(horizontal = 11.dp, vertical = 10.dp)) {
-                Text(
-                    text = material.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
                 Spacer(Modifier.height(7.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -885,14 +878,6 @@ private fun MaterialListCard(
             Spacer(Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = material.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(4.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                     verticalAlignment = Alignment.CenterVertically

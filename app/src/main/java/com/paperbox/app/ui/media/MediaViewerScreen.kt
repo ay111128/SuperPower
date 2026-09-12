@@ -1,20 +1,23 @@
 package com.paperbox.app.ui.media
 
 import android.app.Activity
-import android.net.Uri
 import android.os.Build
+import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -23,7 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -49,7 +51,6 @@ import androidx.media3.ui.PlayerView
 import com.paperbox.app.BuildConfig
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,86 +68,141 @@ fun MediaViewerScreen(
     val fileUrl = "${BuildConfig.API_BASE_URL}/materials-api/materials/$materialId/file"
 
     var showMenu by remember { mutableStateOf(false) }
+    var isFullscreen by remember { mutableStateOf(false) }
 
-    // Edge-to-edge: 状态栏透明，内容延伸到状态栏
-    DisposableEffect(Unit) {
+    // 全屏控制：隐藏/显示系统栏
+    DisposableEffect(isFullscreen) {
         val activity = context as? Activity
         if (activity != null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                activity.window.decorView.systemUiVisibility = 0
-                activity.window.insetsController?.setSystemBarsAppearance(
-                    0,
-                    android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                )
+            if (isFullscreen) {
+                // 全屏：隐藏状态栏和导航栏
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    activity.window.insetsController?.hide(
+                        android.view.WindowInsets.Type.statusBars() or
+                        android.view.WindowInsets.Type.navigationBars()
+                    )
+                    activity.window.insetsController?.systemBarsBehavior =
+                        android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                } else {
+                    @Suppress("DEPRECATION")
+                    activity.window.decorView.systemUiVisibility = (
+                        View.SYSTEM_UI_FLAG_FULLSCREEN or
+                        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    )
+                }
+                activity.window.statusBarColor = android.graphics.Color.BLACK
+                activity.window.navigationBarColor = android.graphics.Color.BLACK
+            } else {
+                // 恢复：显示系统栏
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    activity.window.insetsController?.show(
+                        android.view.WindowInsets.Type.statusBars() or
+                        android.view.WindowInsets.Type.navigationBars()
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    activity.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+                }
+                activity.window.statusBarColor = android.graphics.Color.BLACK
+                activity.window.navigationBarColor = android.graphics.Color.BLACK
             }
-            @Suppress("DEPRECATION")
-            activity.window.statusBarColor = android.graphics.Color.TRANSPARENT
-            @Suppress("DEPRECATION")
-            activity.window.decorView.systemUiVisibility =
-                android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
         }
         onDispose {}
     }
 
-    Scaffold(
-        containerColor = Color.Black,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = Color.White
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.6f)
-                )
-            )
-        }
-    ) { padding ->
+    if (isFullscreen) {
+        // 全屏模式：只有素材 + 点击切换
         Box(
             modifier = Modifier
-                .padding(padding)
                 .fillMaxSize()
                 .background(Color.Black)
+                .clickable { isFullscreen = false }
         ) {
             when {
                 materialType.startsWith("image") -> {
-                    // 图片：支持缩放 + 长按弹出菜单
                     ZoomableImage(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(fileUrl)
                             .crossfade(true)
                             .build(),
-                        contentDescription = "图片",
+                        contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                         onLongPress = { showMenu = true }
                     )
                 }
                 materialType.startsWith("video") -> {
-                    // 视频：ExoPlayer 直接播放
                     VideoPlayer(
                         url = fileUrl,
                         okHttpClient = viewModel.okHttpClient,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
-                else -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "此文件类型不支持预览",
-                            color = Color.White.copy(alpha = 0.6f),
-                            style = MaterialTheme.typography.bodyLarge
+            }
+        }
+    } else {
+        // 普通模式：有顶栏
+        Scaffold(
+            containerColor = Color.Black,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    title = {},
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "返回",
+                                tint = Color.White
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Black.copy(alpha = 0.6f)
+                    )
+                )
+            }
+        ) { padding ->
+            Box(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .clickable { isFullscreen = true }
+            ) {
+                when {
+                    materialType.startsWith("image") -> {
+                        ZoomableImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(fileUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            onLongPress = { showMenu = true }
                         )
+                    }
+                    materialType.startsWith("video") -> {
+                        VideoPlayer(
+                            url = fileUrl,
+                            okHttpClient = viewModel.okHttpClient,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    else -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "此文件类型不支持预览",
+                                color = Color.White.copy(alpha = 0.6f),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
                     }
                 }
             }
@@ -163,9 +219,11 @@ fun MediaViewerScreen(
                 TextButton(onClick = {
                     showMenu = false
                     scope.launch {
+                        val ext = if (materialType.contains("png")) ".png" else ".jpg"
                         viewModel.downloadFile(
                             materialId = materialId,
-                            filename = "${materialId}.jpg"
+                            filename = "${materialId}$ext",
+                            saveAsOriginal = true
                         ) { success, msg ->
                             scope.launch { snackbarHostState.showSnackbar(msg) }
                         }
@@ -200,8 +258,6 @@ private fun VideoPlayer(
     okHttpClient: okhttp3.OkHttpClient,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-
     AndroidView(
         factory = { ctx ->
             val playerView = PlayerView(ctx).apply {
@@ -219,13 +275,13 @@ private fun VideoPlayer(
                 )
                 .build()
 
-            val mediaItem = MediaItem.fromUri(Uri.parse(url))
+            val mediaItem = MediaItem.fromUri(android.net.Uri.parse(url))
             exoPlayer.setMediaItem(mediaItem)
             exoPlayer.prepare()
             exoPlayer.playWhenReady = true
 
             playerView.player = exoPlayer
-            playerView.tag = exoPlayer  // 用于 release
+            playerView.tag = exoPlayer
             playerView
         },
         modifier = modifier,
