@@ -4,18 +4,13 @@ import android.app.Activity
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
@@ -41,8 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
@@ -70,18 +63,19 @@ fun MediaViewerScreen(
     var showMenu by remember { mutableStateOf(false) }
     var isFullscreen by remember { mutableStateOf(false) }
 
-    // 全屏控制：隐藏/显示系统栏
+    // 全屏控制
     DisposableEffect(isFullscreen) {
         val activity = context as? Activity
         if (activity != null) {
             if (isFullscreen) {
-                // 全屏：隐藏状态栏和导航栏
+                // 全屏：隐藏所有系统栏
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    activity.window.insetsController?.hide(
+                    val controller = activity.window.insetsController
+                    controller?.hide(
                         android.view.WindowInsets.Type.statusBars() or
                         android.view.WindowInsets.Type.navigationBars()
                     )
-                    activity.window.insetsController?.systemBarsBehavior =
+                    controller?.systemBarsBehavior =
                         android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 } else {
                     @Suppress("DEPRECATION")
@@ -94,10 +88,10 @@ fun MediaViewerScreen(
                         View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                     )
                 }
-                activity.window.statusBarColor = android.graphics.Color.BLACK
-                activity.window.navigationBarColor = android.graphics.Color.BLACK
+                activity.window.statusBarColor = android.graphics.Color.TRANSPARENT
+                activity.window.navigationBarColor = android.graphics.Color.TRANSPARENT
             } else {
-                // 恢复：显示系统栏
+                // 恢复系统栏
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     activity.window.insetsController?.show(
                         android.view.WindowInsets.Type.statusBars() or
@@ -114,102 +108,7 @@ fun MediaViewerScreen(
         onDispose {}
     }
 
-    if (isFullscreen) {
-        // 全屏模式：只有素材 + 点击切换
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
-                .clickable { isFullscreen = false }
-        ) {
-            when {
-                materialType.startsWith("image") -> {
-                    ZoomableImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(fileUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        onLongPress = { showMenu = true }
-                    )
-                }
-                materialType.startsWith("video") -> {
-                    VideoPlayer(
-                        url = fileUrl,
-                        okHttpClient = viewModel.okHttpClient,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            }
-        }
-    } else {
-        // 普通模式：有顶栏
-        Scaffold(
-            containerColor = Color.Black,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            topBar = {
-                TopAppBar(
-                    title = {},
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "返回",
-                                tint = Color.White
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Black.copy(alpha = 0.6f)
-                    )
-                )
-            }
-        ) { padding ->
-            Box(
-                modifier = Modifier
-                    .padding(padding)
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    .clickable { isFullscreen = true }
-            ) {
-                when {
-                    materialType.startsWith("image") -> {
-                        ZoomableImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(fileUrl)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            onLongPress = { showMenu = true }
-                        )
-                    }
-                    materialType.startsWith("video") -> {
-                        VideoPlayer(
-                            url = fileUrl,
-                            okHttpClient = viewModel.okHttpClient,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                    else -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "此文件类型不支持预览",
-                                color = Color.White.copy(alpha = 0.6f),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 长按弹出菜单
+    // 长按菜单弹窗
     if (showMenu) {
         AlertDialog(
             onDismissRequest = { showMenu = false },
@@ -249,6 +148,99 @@ fun MediaViewerScreen(
             }
         )
     }
+
+    if (isFullscreen) {
+        // 全屏模式：纯素材，点击退出
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .clickable { isFullscreen = false }
+        ) {
+            when {
+                materialType.startsWith("image") -> {
+                    ZoomableImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(fileUrl).crossfade(true).build(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        onLongPress = { showMenu = true }
+                    )
+                }
+                materialType.startsWith("video") -> {
+                    VideoPlayer(
+                        url = fileUrl,
+                        okHttpClient = viewModel.okHttpClient,
+                        modifier = Modifier.fillMaxSize(),
+                        onLongPress = { showMenu = true }
+                    )
+                }
+            }
+        }
+    } else {
+        // 普通模式：有返回栏
+        Scaffold(
+            containerColor = Color.Black,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    title = {},
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "返回",
+                                tint = Color.White
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Black.copy(alpha = 0.6f)
+                    )
+                )
+            }
+        ) { padding ->
+            Box(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .clickable { isFullscreen = true }
+            ) {
+                when {
+                    materialType.startsWith("image") -> {
+                        ZoomableImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(fileUrl).crossfade(true).build(),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            onLongPress = { showMenu = true }
+                        )
+                    }
+                    materialType.startsWith("video") -> {
+                        VideoPlayer(
+                            url = fileUrl,
+                            okHttpClient = viewModel.okHttpClient,
+                            modifier = Modifier.fillMaxSize(),
+                            onLongPress = { showMenu = true }
+                        )
+                    }
+                    else -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "此文件类型不支持预览",
+                                color = Color.White.copy(alpha = 0.6f),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -256,7 +248,8 @@ fun MediaViewerScreen(
 private fun VideoPlayer(
     url: String,
     okHttpClient: okhttp3.OkHttpClient,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)? = null
 ) {
     AndroidView(
         factory = { ctx ->

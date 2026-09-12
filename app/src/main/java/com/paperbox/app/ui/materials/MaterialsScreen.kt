@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -394,6 +395,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         items(state.materials, key = { it.id }) { material ->
                             MaterialGridCard(
                                 material = material,
+                                videoThumbnail = state.videoThumbnails[material.id],
                                 onClick = {
                                     val encodedType = URLEncoder.encode(material.type, "UTF-8")
                                     navController.navigate("media_viewer/${material.id}/$encodedType")
@@ -409,6 +411,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         items(state.materials, key = { it.id }) { material ->
                             MaterialListCard(
                                 material = material,
+                                videoThumbnail = state.videoThumbnails[material.id],
                                 onClick = {
                                     val encodedType = URLEncoder.encode(material.type, "UTF-8")
                                     navController.navigate("media_viewer/${material.id}/$encodedType")
@@ -691,6 +694,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
 @Composable
 private fun MaterialGridCard(
     material: MaterialItem,
+    videoThumbnail: android.graphics.Bitmap? = null,
     onClick: () -> Unit,
     onMore: () -> Unit
 ) {
@@ -743,8 +747,16 @@ private fun MaterialGridCard(
                             }
                         }
                     )
+                } else if (material.type.startsWith("video") && videoThumbnail != null) {
+                    // 视频：显示缩略图
+                    androidx.compose.foundation.Image(
+                        bitmap = videoThumbnail.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
                 } else {
-                    // 非图片类型：显示渐变背景 + 类型图标
+                    // 其他类型：显示渐变背景 + 类型图标
                     Icon(
                         typeStyle.icon,
                         contentDescription = null,
@@ -826,6 +838,7 @@ private fun MaterialGridCard(
 @Composable
 private fun MaterialListCard(
     material: MaterialItem,
+    videoThumbnail: android.graphics.Bitmap? = null,
     onClick: () -> Unit,
     onMore: () -> Unit
 ) {
@@ -864,6 +877,13 @@ private fun MaterialListCard(
                         error = {
                             Icon(typeStyle.icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = Color.White.copy(alpha = 0.9f))
                         }
+                    )
+                } else if (material.type.startsWith("video") && videoThumbnail != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap = videoThumbnail.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
                 } else {
                     Icon(

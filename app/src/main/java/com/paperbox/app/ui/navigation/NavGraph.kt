@@ -1,5 +1,6 @@
 package com.paperbox.app.ui.navigation
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -46,20 +47,46 @@ fun AppNavGraph() {
     val navController = rememberNavController()
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    // 检查登录状态
     val dataStore = context.dataStore
     val tokenFlow = dataStore.data.collectAsState(initial = null)
     val isLoggedIn = tokenFlow.value?.get(PrefsKeys.TOKEN)?.isNotEmpty() == true
 
     if (!isLoggedIn) {
-        LoginScreen(onLoginSuccess = { /* DataStore 更新后会自动触发 recomposition */ })
+        LoginScreen(onLoginSuccess = { })
         return
     }
 
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    val isMediaViewer = currentRoute?.startsWith("media_viewer") == true
+
+    // 素材查看页：无 Scaffold，全屏铺满
+    if (isMediaViewer) {
+        NavHost(
+            navController = navController,
+            startDestination = "media_viewer/temp/temp",
+            modifier = Modifier.fillMaxSize()
+        ) {
+            composable("media_viewer/{materialId}/{materialType}") { backStackEntry ->
+                val materialId = backStackEntry.arguments?.getString("materialId") ?: ""
+                val materialType = URLDecoder.decode(
+                    backStackEntry.arguments?.getString("materialType") ?: "",
+                    "UTF-8"
+                )
+                MediaViewerScreen(
+                    materialId = materialId,
+                    materialType = materialType,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+        }
+        return
+    }
+
+    // 普通页面：有底部导航栏
     Scaffold(
         bottomBar = {
             NavigationBar {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
 
                 bottomTabs.forEach { screen ->
@@ -92,7 +119,6 @@ fun AppNavGraph() {
             composable(Screen.Analysis.route) { AnalysisScreen() }
             composable(Screen.Settings.route) { SettingsScreen() }
 
-            // 素材查看/播放
             composable("media_viewer/{materialId}/{materialType}") { backStackEntry ->
                 val materialId = backStackEntry.arguments?.getString("materialId") ?: ""
                 val materialType = URLDecoder.decode(

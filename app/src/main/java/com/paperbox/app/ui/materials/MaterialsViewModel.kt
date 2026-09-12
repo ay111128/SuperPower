@@ -35,6 +35,7 @@ data class MaterialsUiState(
     val total: Int = 0,
     val colors: List<ColorItem> = emptyList(),
     val tags: List<String> = emptyList(),
+    val videoThumbnails: Map<String, android.graphics.Bitmap> = emptyMap(),
     // 筛选
     val selectedColor: String = "",
     val selectedCategory: String = "all",
@@ -105,6 +106,8 @@ class MaterialsViewModel @Inject constructor(
                         total = body.total,
                         isLoading = false
                     )
+                    // 异步加载视频缩略图
+                    loadVideoThumbnails(filtered)
                     // 日志：打印所有素材类型
                     body.items.forEach { m ->
                         diagLog("Material: id=${m.id} type='${m.type}' name='${m.name}'")
@@ -115,6 +118,37 @@ class MaterialsViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(
                     errorMessage = "加载失败：${e.message}",
                     isLoading = false
+                )
+            }
+        }
+    }
+
+    /** 异步提取视频缩略图 */
+    private fun loadVideoThumbnails(materials: List<MaterialItem>) {
+        val videos = materials.filter { it.type.startsWith("video") }
+        if (videos.isEmpty()) return
+
+        viewModelScope.launch {
+            val thumbnails = mutableMapOf<String, android.graphics.Bitmap>()
+            withContext(Dispatchers.IO) {
+                for (video in videos) {
+                    try {
+                        val retriever = android.media.MediaMetadataRetriever()
+                        val url = "${BuildConfig.API_BASE_URL}/materials-api/materials/${video.id}/file"
+                        retriever.setDataSource(url, HashMap<String, String>())
+                        val bitmap = retriever.frameAtTime
+                        if (bitmap != null) {
+                            thumbnails[video.id] = bitmap
+                        }
+                        retriever.release()
+                    } catch (_: Exception) {
+                        // 缩略图提取失败，忽略
+                    }
+                }
+            }
+            if (thumbnails.isNotEmpty()) {
+                _uiState.value = _uiState.value.copy(
+                    videoThumbnails = _uiState.value.videoThumbnails + thumbnails
                 )
             }
         }
