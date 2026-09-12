@@ -83,45 +83,31 @@ class ApiClient @Inject constructor(
         throw lastException ?: Exception("连接失败")
     }
 
-    /** 自动日志上传：失败请求和诊断日志 POST 到服务器 */
+    /** 异步日志上传：不阻塞任何线程 */
     private fun uploadLog(message: String) {
-        try {
-            val body = """{"level":"android","message":"[AppLog] $message","source":"app"}"""
-                .toRequestBody("application/json".toMediaTypeOrNull())
-            val req = Request.Builder()
-                .url("${getBaseUrl()}/materials-api/app-logs")
-                .post(body)
-                .build()
-            okHttpClient.newBuilder()
-                .callTimeout(5, TimeUnit.SECONDS)
-                .build().newCall(req).execute().close()
-        } catch (_: Exception) {}
+        Thread {
+            try {
+                val body = """{"level":"android","message":"[AppLog] $message","source":"app"}"""
+                    .toRequestBody("application/json".toMediaTypeOrNull())
+                val req = Request.Builder()
+                    .url("${BuildConfig.API_BASE_URL}/materials-api/app-logs")
+                    .post(body)
+                    .build()
+                val logClient = okHttpClient.newBuilder()
+                    .callTimeout(5, TimeUnit.SECONDS)
+                    .readTimeout(5, TimeUnit.SECONDS)
+                    .build()
+                logClient.newCall(req).execute().close()
+            } catch (_: Exception) {}
+        }.start()
     }
 
-    /** 外部可调用的诊断日志上传 */
+    /** 外部可调用的诊断日志上传（异步） */
     fun uploadDiagLog(message: String) = uploadLog(message)
-
-    private val networkLogInterceptor = Interceptor { chain ->
-        val request = chain.request()
-        val start = System.currentTimeMillis()
-        try {
-            val response = chain.proceed(request)
-            val ms = System.currentTimeMillis() - start
-            if (response.code >= 400) {
-                uploadLog("HTTP ${response.code} ${request.method} ${request.url.encodedPath} (${ms}ms)")
-            }
-            response
-        } catch (e: Exception) {
-            val ms = System.currentTimeMillis() - start
-            uploadLog("HTTP_ERR ${request.method} ${request.url.encodedPath} ${e.javaClass.simpleName}: ${e.message} (${ms}ms)")
-            throw e
-        }
-    }
 
     val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(authInterceptor)
         .addInterceptor(retryInterceptor)
-        .addInterceptor(networkLogInterceptor)
         .addInterceptor(loggingInterceptor)
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)

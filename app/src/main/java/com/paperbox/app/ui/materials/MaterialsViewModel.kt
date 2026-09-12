@@ -291,33 +291,20 @@ class MaterialsViewModel @Inject constructor(
             val url = "${BuildConfig.API_BASE_URL}/materials-api/materials/${first.id}/file"
             diagLog("=== Image Diagnosis === URL: $url | ID: ${first.id} | Name: ${first.name}")
 
-            try {
-                val result = withContext(Dispatchers.IO) {
-                    try {
-                        val request = Request.Builder().url(url).build()
-                        val response = okHttpClient.newCall(request).execute()
-                        val code = response.code
-                        val contentType = response.header("Content-Type")
-                        val contentLength = response.body?.contentLength() ?: 0
-                        val bodyPreview = if (code == 200) {
-                            response.body?.byteStream()?.use { stream ->
-                                val buf = ByteArray(100)
-                                val read = stream.read(buf)
-                                "First bytes: ${buf.take(read).joinToString(" ") { "%02X".format(it) }}"
-                            } ?: "empty"
-                        } else {
-                            response.body?.string()?.take(200) ?: "empty"
-                        }
-                        response.close()
-                        "HTTP $code | CT: $contentType | Size: $contentLength | $bodyPreview"
-                    } catch (e: Exception) {
-                        "ERROR: ${e.javaClass.simpleName}: ${e.message}"
-                    }
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    val request = Request.Builder().url(url).build()
+                    val response = okHttpClient.newCall(request).execute()
+                    val code = response.code
+                    val contentType = response.header("Content-Type")
+                    val contentLength = response.body?.contentLength() ?: 0
+                    response.close()
+                    "HTTP $code | CT: $contentType | Size: $contentLength"
+                } catch (e: Exception) {
+                    "ERROR: ${e.javaClass.simpleName}: ${e.message}"
                 }
-                diagLog("Diagnosis result: $result")
-            } catch (e: Exception) {
-                diagLog("Diagnosis exception: ${e.message}")
             }
+            diagLog("Diagnosis result: $result")
         }
     }
 
