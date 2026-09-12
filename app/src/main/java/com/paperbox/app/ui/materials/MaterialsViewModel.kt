@@ -1,7 +1,11 @@
 package com.paperbox.app.ui.materials
 
+import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -272,10 +276,62 @@ class MaterialsViewModel @Inject constructor(
 
     fun downloadMaterial() {
         val material = _uiState.value.selectedMaterial ?: return
-        _uiState.value = _uiState.value.copy(
-            showMoreSheet = false,
-            toastMessage = "开始下载「${material.name}」"
-        )
+        _uiState.value = _uiState.value.copy(showMoreSheet = false)
+
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val url = "${BuildConfig.API_BASE_URL}/materials-api/materials/${material.id}/file"
+                    val request = Request.Builder().url(url).build()
+                    val response = apiClient.okHttpClient.newCall(request).execute()
+
+                    if (!response.isSuccessful) {
+                        throw Exception("HTTP ${response.code}")
+                    }
+
+                    val filename = material.name.ifBlank { "${material.id}${material.ext}" }
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        // Android 10+ 使用 MediaStore
+                        val mimeType = response.body?.contentType()?.toString() ?: "application/octet-stream"
+                        val contentValues = ContentValues().apply {
+                            put(MediaStore.Downloads.DISPLAY_NAME, filename)
+                            put(MediaStore.Downloads.MIME_TYPE, mimeType)
+                            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Paperbox")
+                            put(MediaStore.Downloads.IS_PENDING, 1)
+                        }
+                        val uri = context.contentResolver.insert(
+                            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                            contentValues
+                        )
+                        if (uri != null) {
+                            context.contentResolver.openOutputStream(uri)?.use { os ->
+                                response.body?.byteStream()?.use { input -> input.copyTo(os) }
+                            }
+                            contentValues.clear()
+                            contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
+                            context.contentResolver.update(uri, contentValues, null, null)
+                        }
+                    } else {
+                        // Android 9 及以下直接写文件
+                        @Suppress("DEPRECATION")
+                        val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                        val paperboxDir = File(dir, "Paperbox")
+                        paperboxDir.mkdirs()
+                        val file = File(paperboxDir, filename)
+                        response.body?.byteStream()?.use { input ->
+                            file.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        android.media.MediaScannerConnection.scanFile(
+                            context, arrayOf(file.absolutePath), null, null
+                        )
+                    }
+                }
+                _uiState.value = _uiState.value.copy(toastMessage = "已下载「${material.name}」")
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(toastMessage = "下载失败：${e.message}")
+            }
+        }
     }
 
     fun clearMessages() {

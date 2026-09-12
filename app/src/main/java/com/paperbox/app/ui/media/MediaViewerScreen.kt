@@ -1,9 +1,10 @@
 package com.paperbox.app.ui.media
 
 import android.annotation.SuppressLint
-import android.net.http.SslError
+import android.app.Activity
+import android.os.Build
 import android.view.ViewGroup
-import android.webkit.SslErrorHandler
+import android.view.WindowManager
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -14,21 +15,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,13 +40,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.paperbox.app.BuildConfig
-import com.paperbox.app.data.api.PrefsKeys
-import com.paperbox.app.data.api.dataStore
 import coil.request.ImageRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -59,33 +63,45 @@ import javax.net.ssl.X509TrustManager
 fun MediaViewerScreen(
     materialId: String,
     materialType: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    viewModel: MediaViewerViewModel = hiltViewModel()
 ) {
     BackHandler { onBack() }
 
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     val fileUrl = "${BuildConfig.API_BASE_URL}/materials-api/materials/$materialId/file"
-    val title = when {
-        materialType.startsWith("image") -> "图片查看"
-        materialType.startsWith("video") -> "视频播放"
-        else -> "文件预览"
+
+    // 状态栏变黑
+    DisposableEffect(Unit) {
+        val activity = context as? Activity
+        if (activity != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                activity.window.insetsController?.setSystemBarsAppearance(
+                    0,
+                    android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                )
+            }
+            @Suppress("DEPRECATION")
+            activity.window.statusBarColor = android.graphics.Color.BLACK
+        }
+        onDispose {
+            // 恢复状态栏颜色（可选）
+        }
     }
 
     Scaffold(
         containerColor = Color.Black,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        title,
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                },
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            Icons.Default.Close,
-                            contentDescription = "关闭",
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回",
                             tint = Color.White
                         )
                     }
@@ -104,19 +120,30 @@ fun MediaViewerScreen(
         ) {
             when {
                 materialType.startsWith("image") -> {
-                    // 图片：支持缩放
+                    // 图片：支持缩放 + 长按保存
                     ZoomableImage(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(fileUrl)
                             .crossfade(true)
                             .build(),
                         contentDescription = "图片",
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        onLongPress = {
+                            scope.launch {
+                                viewModel.saveImageToGallery(
+                                    imageUrl = fileUrl,
+                                    filename = "${materialId}.jpg"
+                                ) { success, msg ->
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(msg)
+                                    }
+                                }
+                            }
+                        }
                     )
                 }
                 materialType.startsWith("video") -> {
-                    // 视频：先下载到缓存再播放
-                    val context = LocalContext.current
+                    // 视频：下载到缓存再播放
                     var cachedFile by remember { mutableStateOf<File?>(null) }
                     var downloadError by remember { mutableStateOf<String?>(null) }
                     var isDownloading by remember { mutableStateOf(true) }
@@ -124,11 +151,6 @@ fun MediaViewerScreen(
                     LaunchedEffect(materialId) {
                         withContext(Dispatchers.IO) {
                             try {
-                                // 读取 auth token
-                                val token = context.dataStore.data
-                                    .map { it[PrefsKeys.TOKEN] ?: "" }
-                                    .first()
-
                                 val cacheDir = File(context.cacheDir, "video_cache")
                                 cacheDir.mkdirs()
                                 val ext = when {
@@ -140,13 +162,8 @@ fun MediaViewerScreen(
                                 val cacheFile = File(cacheDir, "${materialId}$ext")
 
                                 if (!cacheFile.exists()) {
-                                    // 下载视频到缓存
-                                    val client = createVideoClient()
-                                    val request = Request.Builder()
-                                        .url(fileUrl)
-                                        .addHeader("Authorization", "Bearer $token")
-                                        .build()
-                                    val response = client.newCall(request).execute()
+                                    val request = Request.Builder().url(fileUrl).build()
+                                    val response = viewModel.okHttpClient.newCall(request).execute()
                                     if (response.isSuccessful) {
                                         response.body?.byteStream()?.use { input ->
                                             cacheFile.outputStream().use { output ->
@@ -186,7 +203,7 @@ fun MediaViewerScreen(
                                 Text(
                                     text = "视频加载失败：$downloadError",
                                     color = Color.White.copy(alpha = 0.6f),
-                                    style = MaterialTheme.typography.bodyMedium
+                                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
                                 )
                             }
                         }
@@ -206,7 +223,7 @@ fun MediaViewerScreen(
                         Text(
                             text = "此文件类型不支持预览",
                             color = Color.White.copy(alpha = 0.6f),
-                            style = MaterialTheme.typography.bodyLarge
+                            style = androidx.compose.material3.MaterialTheme.typography.bodyLarge
                         )
                     }
                 }
@@ -218,7 +235,7 @@ fun MediaViewerScreen(
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 private fun VideoPlayer(
-    localFile: java.io.File,
+    localFile: File,
     modifier: Modifier = Modifier
 ) {
     AndroidView(
@@ -249,8 +266,7 @@ private fun VideoPlayer(
     )
 }
 
-private fun buildLocalVideoHtml(file: java.io.File): String {
-    // 使用 file:// 协议加载本地视频，无需 SSL 认证
+private fun buildLocalVideoHtml(file: File): String {
     val fileUrl = "file://${file.absolutePath}"
     return """
 <!DOCTYPE html>
@@ -282,22 +298,4 @@ video {
 </body>
 </html>
 """.trimIndent()
-}
-
-/** 创建信任自签名证书的 OkHttpClient（仅用于视频下载到缓存） */
-private fun createVideoClient(): OkHttpClient {
-    val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-        override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-        override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
-        override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-    })
-    val sslContext = SSLContext.getInstance("TLS").apply {
-        init(null, trustAllCerts, SecureRandom())
-    }
-    return OkHttpClient.Builder()
-        .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-        .hostnameVerifier { _, _ -> true }
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .build()
 }

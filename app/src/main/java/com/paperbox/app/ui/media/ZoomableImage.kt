@@ -19,7 +19,8 @@ import coil.compose.AsyncImage
 fun ZoomableImage(
     model: Any?,
     contentDescription: String?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)? = null
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
@@ -55,6 +56,9 @@ fun ZoomableImage(
                             offsetX = (size.width / 2f - tapOffset.x) * 1.5f
                             offsetY = (size.height / 2f - tapOffset.y) * 1.5f
                         }
+                    },
+                    onLongPress = {
+                        onLongPress?.invoke()
                     }
                 )
             },
