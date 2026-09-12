@@ -65,14 +65,6 @@ fun MediaViewerScreen(
     onBack: () -> Unit,
     viewModel: MediaViewerViewModel = hiltViewModel()
 ) {
-    BackHandler {
-        when (viewState) {
-            VIEW_PURE -> viewState = VIEW_FULLSCREEN
-            VIEW_FULLSCREEN -> viewState = VIEW_NORMAL
-            else -> onBack()
-        }
-    }
-
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -80,6 +72,14 @@ fun MediaViewerScreen(
 
     var showMenu by remember { mutableStateOf(false) }
     var viewState by remember { mutableIntStateOf(VIEW_NORMAL) }
+
+    BackHandler {
+        when (viewState) {
+            VIEW_PURE -> viewState = VIEW_FULLSCREEN
+            VIEW_FULLSCREEN -> viewState = VIEW_NORMAL
+            else -> onBack()
+        }
+    }
 
     // 系统栏控制
     DisposableEffect(viewState) {
