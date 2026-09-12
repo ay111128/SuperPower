@@ -60,58 +60,12 @@ fun AppNavGraph() {
     val currentRoute = navBackStackEntry?.destination?.route
     val isMediaViewer = currentRoute?.startsWith("media_viewer") == true
 
-    // 素材查看页：无 Scaffold，全屏铺满
-    if (isMediaViewer) {
-        NavHost(
-            navController = navController,
-            startDestination = "media_viewer/temp/temp",
-            modifier = Modifier.fillMaxSize()
-        ) {
-            composable("media_viewer/{materialId}/{materialType}") { backStackEntry ->
-                val materialId = backStackEntry.arguments?.getString("materialId") ?: ""
-                val materialType = URLDecoder.decode(
-                    backStackEntry.arguments?.getString("materialType") ?: "",
-                    "UTF-8"
-                )
-                MediaViewerScreen(
-                    materialId = materialId,
-                    materialType = materialType,
-                    onBack = { navController.popBackStack() }
-                )
-            }
-        }
-        return
-    }
-
-    // 普通页面：有底部导航栏
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                val currentDestination = navBackStackEntry?.destination
-
-                bottomTabs.forEach { screen ->
-                    NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = screen.title) },
-                        label = { Text(screen.title) },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        }
-                    )
-                }
-            }
-        }
-    ) { innerPadding ->
+    // 单一 NavHost，根据是否是媒体查看页决定是否包裹 Scaffold
+    val navHost = @Composable { modifier: Modifier ->
         NavHost(
             navController = navController,
             startDestination = Screen.Quote.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = modifier
         ) {
             composable(Screen.Quote.route) { QuoteScreen() }
             composable(Screen.SizeGuide.route) { SizeGuideScreen() }
@@ -131,6 +85,39 @@ fun AppNavGraph() {
                     onBack = { navController.popBackStack() }
                 )
             }
+        }
+    }
+
+    if (isMediaViewer) {
+        // 素材查看页：无 Scaffold，全屏铺满
+        navHost(Modifier.fillMaxSize())
+    } else {
+        // 普通页面：有底部导航栏
+        Scaffold(
+            bottomBar = {
+                NavigationBar {
+                    val currentDestination = navBackStackEntry?.destination
+
+                    bottomTabs.forEach { screen ->
+                        NavigationBarItem(
+                            icon = { Icon(screen.icon, contentDescription = screen.title) },
+                            label = { Text(screen.title) },
+                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        ) { innerPadding ->
+            navHost(Modifier.padding(innerPadding))
         }
     }
 }
