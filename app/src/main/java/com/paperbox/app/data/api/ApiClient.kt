@@ -80,7 +80,7 @@ class ApiClient @Inject constructor(
         throw lastException ?: Exception("连接失败")
     }
 
-    private val okHttpClient = OkHttpClient.Builder()
+    val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(authInterceptor)
         .addInterceptor(retryInterceptor)
         .addInterceptor(loggingInterceptor)
