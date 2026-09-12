@@ -85,8 +85,19 @@ class MaterialsViewModel @Inject constructor(
                 )
                 if (response.isSuccessful) {
                     val body = response.body()!!
+                    // 客户端分类筛选（API 不支持 type 参数）
+                    val filtered = if (state.selectedCategory == "all") body.items
+                    else body.items.filter { m ->
+                        when (state.selectedCategory) {
+                            "image" -> m.type.startsWith("image")
+                            "video" -> m.type.startsWith("video")
+                            "doc" -> m.type.contains("pdf") || m.type.contains("document") || m.type.contains("msword")
+                            "zip" -> m.type.contains("zip") || m.type.contains("compressed")
+                            else -> true
+                        }
+                    }
                     _uiState.value = _uiState.value.copy(
-                        materials = body.items,
+                        materials = filtered,
                         total = body.total,
                         isLoading = false
                     )

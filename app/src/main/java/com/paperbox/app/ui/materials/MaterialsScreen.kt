@@ -90,23 +90,23 @@ import com.paperbox.app.data.api.models.MaterialItem
 private object MaterialTypeColors {
     data class TypeStyle(val name: String, val gradient: Brush, val icon: ImageVector)
 
-    fun styleFor(type: String): TypeStyle = when (type) {
-        "image" -> TypeStyle(
+    fun styleFor(type: String): TypeStyle = when {
+        type.startsWith("image") -> TypeStyle(
             "图片",
             Brush.linearGradient(listOf(Color(0xFF6AA6FF), Color(0xFF3B5BFF))),
             Icons.Default.Image
         )
-        "doc" -> TypeStyle(
-            "文档",
-            Brush.linearGradient(listOf(Color(0xFFFFC27A), Color(0xFFFF8A3D))),
-            Icons.Default.Description
-        )
-        "video" -> TypeStyle(
+        type.startsWith("video") -> TypeStyle(
             "视频",
             Brush.linearGradient(listOf(Color(0xFFC77CFF), Color(0xFF8A3DFF))),
             Icons.Default.VideoFile
         )
-        "zip" -> TypeStyle(
+        type.contains("pdf") || type.contains("document") || type.contains("msword") -> TypeStyle(
+            "文档",
+            Brush.linearGradient(listOf(Color(0xFFFFC27A), Color(0xFFFF8A3D))),
+            Icons.Default.Description
+        )
+        type.contains("zip") || type.contains("compressed") || type.contains("archive") -> TypeStyle(
             "压缩包",
             Brush.linearGradient(listOf(Color(0xFF8AA0C8), Color(0xFF4C5C7E))),
             Icons.Default.Folder
@@ -704,7 +704,7 @@ private fun MaterialGridCard(
                     .height(132.dp)
                     .background(typeStyle.gradient)
             ) {
-                if (material.type == "image") {
+                if (material.type.startsWith("image")) {
                     // 图片类型：显示真实图片
                     val imageUrl = "${BuildConfig.API_BASE_URL}/materials-api/materials/${material.id}/file"
                     Log.d("MaterialsCard", "Loading image: $imageUrl")
@@ -850,7 +850,7 @@ private fun MaterialListCard(
                     .background(typeStyle.gradient),
                 contentAlignment = Alignment.Center
             ) {
-                if (material.type == "image") {
+                if (material.type.startsWith("image")) {
                     val imageUrl = "${BuildConfig.API_BASE_URL}/materials-api/materials/${material.id}/file"
                     SubcomposeAsyncImage(
                         model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
