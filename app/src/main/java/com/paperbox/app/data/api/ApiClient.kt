@@ -3,6 +3,7 @@ package com.paperbox.app.data.api
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -27,6 +28,9 @@ object PrefsKeys {
     val TOKEN = stringPreferencesKey("auth_token")
     val USERNAME = stringPreferencesKey("username")
     val SERVER_URL = stringPreferencesKey("server_url")
+    val SAVED_USERNAME = stringPreferencesKey("saved_username")
+    val SAVED_PASSWORD = stringPreferencesKey("saved_password")
+    val REMEMBER_PASSWORD = booleanPreferencesKey("remember_password")
 }
 
 @Singleton

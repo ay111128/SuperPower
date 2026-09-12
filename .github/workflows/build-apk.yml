@@ -66,17 +66,9 @@ jobs:
             COMMIT_MSG="手动触发构建"
           fi
           {
-            echo "## 📦 飞机盒报价工具 (Paperbox)"
+            echo "**${BUILD_TIME}**（${SHORT_SHA}）"
             echo ""
-            echo "**最新构建**：${BUILD_TIME}（${SHORT_SHA}）"
-            echo ""
-            echo "### 更新内容"
             echo "${COMMIT_MSG}"
-            echo ""
-            echo "### 下载安装"
-            echo "1. 点击下方 APK 文件下载"
-            echo '2. 在手机上打开安装（需允许"未知来源"）'
-            echo "3. 如已安装旧版本，直接覆盖安装即可"
           } > release_body.md
 
       - name: Create GitHub Release

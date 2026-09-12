@@ -7,11 +7,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.paperbox.app.data.api.PrefsKeys
+import com.paperbox.app.data.api.dataStore
 import com.paperbox.app.ui.theme.Primary
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,10 +29,51 @@ fun LoginScreen(
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
+    var rememberPassword by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // 加载保存的用户名和密码
+    LaunchedEffect(Unit) {
+        context.dataStore.data.map { prefs ->
+            Triple(
+                prefs[PrefsKeys.SAVED_USERNAME] ?: "",
+                prefs[PrefsKeys.SAVED_PASSWORD] ?: "",
+                prefs[PrefsKeys.REMEMBER_PASSWORD] ?: false
+            )
+        }.collect { (savedUser, savedPass, remember) ->
+            if (remember) {
+                username = savedUser
+                password = savedPass
+                rememberPassword = true
+            }
+        }
+    }
 
     // 登录成功跳转
     LaunchedEffect(uiState.isSuccess) {
-        if (uiState.isSuccess) onLoginSuccess()
+        if (uiState.isSuccess) {
+            // 保存登录信息
+            if (rememberPassword) {
+                scope.launch {
+                    context.dataStore.edit { prefs ->
+                        prefs[PrefsKeys.SAVED_USERNAME] = username
+                        prefs[PrefsKeys.SAVED_PASSWORD] = password
+                        prefs[PrefsKeys.REMEMBER_PASSWORD] = true
+                    }
+                }
+            } else {
+                scope.launch {
+                    context.dataStore.edit { prefs ->
+                        prefs[PrefsKeys.SAVED_USERNAME] = ""
+                        prefs[PrefsKeys.SAVED_PASSWORD] = ""
+                        prefs[PrefsKeys.REMEMBER_PASSWORD] = false
+                    }
+                }
+            }
+            onLoginSuccess()
+        }
     }
 
     Scaffold(
@@ -104,6 +150,21 @@ fun LoginScreen(
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
                 )
+            }
+
+            // 记住密码（仅登录模式）
+            if (!isRegisterMode) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Checkbox(
+                        checked = rememberPassword,
+                        onCheckedChange = { rememberPassword = it }
+                    )
+                    Text("记住密码", style = MaterialTheme.typography.bodyMedium)
+                }
             }
 
             Spacer(Modifier.height(24.dp))
