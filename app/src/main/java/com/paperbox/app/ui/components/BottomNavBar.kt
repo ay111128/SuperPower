@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -36,10 +37,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 // 设计稿颜色
-private val BarBackground = Color(0xFFF2F2F2)
-private val UnselectedColor = Color(0xFF000000)
-private val SelectedGreen = Color(0xFF00AA5B)
-private val EllipseGreen = Color(0x768DF547) // #8DF547 at 46% opacity
+private val BarBackground = Color(0xFFFFFFFF)       // 白色背景
+private val UnselectedColor = Color(0xFF666666)     // 灰色未选中
+private val SelectedGreen = Color(0xFF1B8A3E)       // 设计稿绿色
+private val ActiveCircleBg = Color(0xFFD1F0BD)      // 浅绿色圆形背景
+private val BarShadow = Color(0x14000000)            // 阴影颜色 rgba(0,0,0,0.08)
 
 data class BottomNavItem(
     val route: String,
@@ -64,16 +66,22 @@ fun BottomNavBar(
     val textMeasurer = rememberTextMeasurer()
 
     val labelStyle = TextStyle(
-        fontSize = 13.sp,
+        fontSize = 11.sp,
         fontWeight = FontWeight.Medium
     )
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(BarBackground, RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+            .shadow(
+                elevation = 20.dp,
+                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                ambientColor = BarShadow,
+                spotColor = BarShadow
+            )
+            .background(BarBackground, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(horizontal = 0.dp, vertical = 6.dp)
+            .padding(horizontal = 0.dp, vertical = 8.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             items.forEach { item ->
@@ -101,25 +109,22 @@ fun BottomNavBar(
                         val canvasWidth = size.width
                         val canvasHeight = size.height
 
-                        // 选中态：绘制绿色椭圆背景（仅素材tab）
-                        if (selected && item.iconType == IconType.MATERIALS) {
-                            drawOval(
-                                color = EllipseGreen,
-                                topLeft = Offset(
-                                    canvasWidth * 0.08f,
-                                    canvasHeight * 0.0f
-                                ),
-                                size = Size(
-                                    canvasWidth * 0.84f,
-                                    canvasHeight * 0.72f
-                                )
-                            )
-                        }
-
                         // 图标：占画布宽度的 ~42%，居中
                         val iconSize = canvasWidth * 0.42f
                         val iconLeft = (canvasWidth - iconSize) / 2f
                         val iconTop = canvasHeight * 0.02f
+
+                        // 选中态：所有 tab 都绘制圆形浅绿背景
+                        if (selected) {
+                            drawCircle(
+                                color = ActiveCircleBg,
+                                radius = iconSize * 0.6f,
+                                center = Offset(
+                                    canvasWidth / 2f,
+                                    iconTop + iconSize * 0.5f
+                                )
+                            )
+                        }
 
                         when (item.iconType) {
                             IconType.QUOTE -> drawQuoteIcon(
