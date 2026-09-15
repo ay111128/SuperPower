@@ -162,7 +162,6 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFF1B8A3E))
-                    .windowInsetsPadding(WindowInsets.statusBars)
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
