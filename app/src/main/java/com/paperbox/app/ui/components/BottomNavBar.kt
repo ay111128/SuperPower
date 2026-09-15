@@ -8,9 +8,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -69,6 +72,7 @@ fun BottomNavBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(BarBackground, RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+            .windowInsetsPadding(WindowInsets.navigationBars)
             .padding(horizontal = 0.dp, vertical = 6.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
