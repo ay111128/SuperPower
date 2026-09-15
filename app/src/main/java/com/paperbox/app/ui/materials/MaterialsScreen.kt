@@ -225,7 +225,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, bottom = 12.dp)
+                    .padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
             ) {
                 ExposedDropdownMenuBox(
                     expanded = colorDropdownExpanded,
