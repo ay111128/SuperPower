@@ -31,12 +31,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.paperbox.app.R
 
-// 颜色定义
-private val SelectedGreen = Color(0xFF1B8A3E)
-private val SelectedGreenSoft = Color(0xFFE8F5E0)    // 浅绿色选中背景
-private val UnselectedColor = Color(0xFF999999)       // 灰色未选中
-private val BarBackground = Color(0xF5FFFFFF)          // 94% 不透明度白色
-private val BarShadow = Color(0x1A000000)              // 阴影 rgba(0,0,0,0.1)
+// 颜色定义 - 匹配设计稿
+private val SelectedGreen = Color(0xFF1B8A3E)           // 激活状态绿色
+private val SelectedGreenBg = Color(0xFFC3F0A5)          // 激活状态圆形背景
+private val UnselectedIconColor = Color(0xFF696969)      // 未激活图标颜色
+private val UnselectedTextColor = Color(0xFF636363)      // 未激活文字颜色
+private val BarBackground = Color(0xFFFFFFFF)            // 白色背景
+private val BarShadow = Color(0x14000000)                // 阴影 rgba(0,0,0,0.08)
 
 data class BottomNavItem(
     val route: String,
@@ -54,17 +55,17 @@ fun BottomNavBar(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(start = 16.dp, end = 16.dp, bottom = 12.dp, top = 4.dp),
+            .shadow(20.dp, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp), spotColor = BarShadow)
+            .background(BarBackground, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            .padding(top = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp)
-                .shadow(12.dp, RoundedCornerShape(30.dp), spotColor = BarShadow)
-                .background(BarBackground, RoundedCornerShape(30.dp))
-                .padding(horizontal = 6.dp, vertical = 4.dp),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceAround,
         ) {
             items.forEach { item ->
                 val selected = item.route == selectedRoute
@@ -72,30 +73,38 @@ fun BottomNavBar(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .height(52.dp)
-                        .background(
-                            if (selected) SelectedGreenSoft else Color.Transparent,
-                            RoundedCornerShape(26.dp),
-                        )
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                         ) { onItemSelected(item.route) },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
+                    gap = 2.dp,
                 ) {
-                    Icon(
-                        imageVector = ImageVector.vectorResource(id = item.iconRes),
-                        contentDescription = item.label,
-                        tint = if (selected) SelectedGreen else UnselectedColor,
-                        modifier = Modifier.size(22.dp),
-                    )
+                    // 图标容器 - 44dp圆形背景
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(
+                                color = if (selected) SelectedGreenBg else Color.Transparent,
+                                shape = RoundedCornerShape(22.dp)
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = ImageVector.vectorResource(id = item.iconRes),
+                            contentDescription = item.label,
+                            tint = if (selected) SelectedGreen else UnselectedIconColor,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                    // 标签文字
                     Text(
                         text = item.label,
-                        fontSize = 10.sp,
-                        lineHeight = 12.sp,
+                        fontSize = 11.sp,
+                        lineHeight = 13.sp,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (selected) SelectedGreen else UnselectedColor,
+                        color = if (selected) SelectedGreen else UnselectedTextColor,
                     )
                 }
             }
