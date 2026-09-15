@@ -82,7 +82,12 @@ fun LoginScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("飞机盒报价工具") },
+                title = {
+                    Text(
+                        "飞机盒报价工具",
+                        modifier = Modifier.statusBarsPadding()
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFF1B8A3E),
                     titleContentColor = Color.White

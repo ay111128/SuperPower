@@ -19,7 +19,12 @@ fun AnalysisScreen() {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("对账分析") },
+                title = {
+                    Text(
+                        "对账分析",
+                        modifier = Modifier.statusBarsPadding()
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFF1B8A3E),
                     titleContentColor = Color.White

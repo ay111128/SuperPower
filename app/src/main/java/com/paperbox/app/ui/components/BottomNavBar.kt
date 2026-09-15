@@ -40,7 +40,8 @@ private val BarShadow = Color(0x14000000)                // 阴影 rgba(0,0,0,0.
 data class BottomNavItem(
     val route: String,
     val label: String,
-    val iconRes: Int
+    val iconRes: Int,
+    val iconResFilled: Int
 )
 
 @Composable
@@ -105,7 +106,7 @@ fun BottomNavBar(
                     ) {
                         // 图标：24dp
                         Icon(
-                            imageVector = ImageVector.vectorResource(id = item.iconRes),
+                            imageVector = ImageVector.vectorResource(id = if (selected) item.iconResFilled else item.iconRes),
                             contentDescription = item.label,
                             tint = if (selected) SelectedGreen else UnselectedIconColor,
                             modifier = Modifier.size(24.dp),

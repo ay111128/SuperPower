@@ -27,7 +27,12 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("飞机盒报价") },
+                title = {
+                    Text(
+                        "飞机盒报价",
+                        modifier = Modifier.statusBarsPadding()
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFF1B8A3E),
                     titleContentColor = Color.White,
@@ -35,7 +40,10 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
                 ),
                 windowInsets = WindowInsets(0, 0, 0, 0),
                 actions = {
-                    IconButton(onClick = { viewModel.reset() }) {
+                    IconButton(
+                        onClick = { viewModel.reset() },
+                        modifier = Modifier.statusBarsPadding()
+                    ) {
                         Icon(Icons.Default.Refresh, contentDescription = "重置")
                     }
                 }

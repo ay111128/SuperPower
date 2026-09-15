@@ -51,7 +51,14 @@ private fun Screen.toBottomNavItem(): BottomNavItem {
         Screen.Analysis -> R.drawable.ic_nav_analysis
         Screen.Profile -> R.drawable.ic_nav_profile
     }
-    return BottomNavItem(route = route, label = title, iconRes = iconRes)
+    val iconResFilled = when (this) {
+        Screen.Quote -> R.drawable.ic_nav_quote_filled
+        Screen.SizeGuide -> R.drawable.ic_nav_sizeguide_filled
+        Screen.Materials -> R.drawable.ic_nav_materials_filled
+        Screen.Analysis -> R.drawable.ic_nav_analysis_filled
+        Screen.Profile -> R.drawable.ic_nav_profile_filled
+    }
+    return BottomNavItem(route = route, label = title, iconRes = iconRes, iconResFilled = iconResFilled)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
