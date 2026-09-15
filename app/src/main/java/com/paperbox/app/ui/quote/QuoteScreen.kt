@@ -7,6 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +27,12 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
         topBar = {
             TopAppBar(
                 title = { Text("飞机盒报价") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF1B8A3E),
+                    titleContentColor = Color.White,
+                    actionIconContentColor = Color.White
+                ),
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 actions = {
                     IconButton(onClick = { viewModel.reset() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "重置")

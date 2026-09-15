@@ -161,6 +161,8 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(Color(0xFF1B8A3E))
+                    .windowInsetsPadding(WindowInsets.statusBars)
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -168,6 +170,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                 Text(
                     text = "素材管理",
                     style = MaterialTheme.typography.headlineMedium,
+                    color = Color.White,
                     fontWeight = FontWeight.Bold
                 )
                 Row(
@@ -195,7 +198,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     // 上传按钮
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.primary,
+                        color = Color.White,
                         modifier = Modifier
                             .size(44.dp)
                             .clickable { viewModel.showUploadSheet() }
@@ -206,7 +209,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                             modifier = Modifier
                                 .padding(10.dp)
                                 .size(24.dp),
-                            tint = MaterialTheme.colorScheme.onPrimary
+                            tint = Color(0xFF1B8A3E)
                         )
                     }
                 }

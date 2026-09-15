@@ -2,6 +2,7 @@ package com.paperbox.app.ui.settings
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -15,7 +16,14 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("设置") })
+            TopAppBar(
+                title = { Text("设置") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF1B8A3E),
+                    titleContentColor = Color.White
+                ),
+                windowInsets = WindowInsets(0, 0, 0, 0)
+            )
         }
     ) { padding ->
         Column(
