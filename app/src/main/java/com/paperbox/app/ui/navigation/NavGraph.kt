@@ -2,6 +2,7 @@ package com.paperbox.app.ui.navigation
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -106,6 +107,7 @@ fun AppNavGraph() {
     } else {
         // 普通页面：有底部导航栏
         Scaffold(
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
                 BottomNavBar(
                     items = bottomTabs.map { it.toBottomNavItem() },

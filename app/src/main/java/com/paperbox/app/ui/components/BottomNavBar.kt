@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.ripple
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -91,6 +92,7 @@ fun BottomNavBar(
                     Box(
                         modifier = Modifier
                             .size(44.dp)
+                            .clip(RoundedCornerShape(22.dp))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = ripple(),
