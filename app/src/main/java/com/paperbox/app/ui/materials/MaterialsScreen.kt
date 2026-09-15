@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FileDownload
@@ -52,6 +53,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -121,15 +124,6 @@ private object MaterialTypeColors {
         )
     }
 }
-
-// ── 分类数据 ──
-private val categories = listOf(
-    "all" to "全部素材",
-    "image" to "图片",
-    "doc" to "文档",
-    "video" to "视频",
-    "zip" to "压缩包"
-)
 
 // ── 格式化文件大小 ──
 private fun formatSize(bytes: Long): String = when {
@@ -224,29 +218,105 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                 .padding(padding)
                 .fillMaxSize()
         ) {
-            // ── 分类 Tab ──
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 12.dp)
+            // ── 颜色分类下拉框 ──
+            var colorDropdownExpanded by remember { mutableStateOf(false) }
+            val currentColorLabel = state.selectedColor.ifBlank { "全部" }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, bottom = 12.dp)
             ) {
-                items(categories) { (key, label) ->
-                    val isSelected = state.selectedCategory == key
+                ExposedDropdownMenuBox(
+                    expanded = colorDropdownExpanded,
+                    onExpandedChange = { colorDropdownExpanded = it }
+                ) {
                     Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primary
-                               else MaterialTheme.colorScheme.surface,
-                        border = if (!isSelected) ButtonDefaults.outlinedButtonBorder(enabled = true) else null,
-                        modifier = Modifier.clickable { viewModel.selectCategory(key) }
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = ButtonDefaults.outlinedButtonBorder(enabled = true),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
                     ) {
-                        Text(
-                            text = label,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary
-                                   else MaterialTheme.colorScheme.onSurface,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // 如果选了颜色，显示色块圆点
+                                if (state.selectedColor.isNotBlank()) {
+                                    val selectedColorItem = state.colors.find { it.name == state.selectedColor }
+                                    if (selectedColorItem != null) {
+                                        Surface(
+                                            shape = RoundedCornerShape(50),
+                                            color = try {
+                                                Color(android.graphics.Color.parseColor(selectedColorItem.hex))
+                                            } catch (_: Exception) { Color.Gray },
+                                            modifier = Modifier.size(14.dp)
+                                        ) {}
+                                    }
+                                }
+                                Text(
+                                    text = currentColorLabel,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Icon(
+                                Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    ExposedDropdownMenu(
+                        expanded = colorDropdownExpanded,
+                        onDismissRequest = { colorDropdownExpanded = false }
+                    ) {
+                        // "全部" 选项
+                        ExposedDropdownMenuItem(
+                            text = { Text("全部", fontWeight = if (state.selectedColor.isBlank()) FontWeight.SemiBold else FontWeight.Normal) },
+                            onClick = {
+                                viewModel.selectColor("")
+                                colorDropdownExpanded = false
+                            }
                         )
+                        // 各颜色选项
+                        state.colors.forEach { colorItem ->
+                            ExposedDropdownMenuItem(
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(50),
+                                            color = try {
+                                                Color(android.graphics.Color.parseColor(colorItem.hex))
+                                            } catch (_: Exception) { Color.Gray },
+                                            modifier = Modifier.size(16.dp)
+                                        ) {}
+                                        Text(
+                                            text = colorItem.name,
+                                            fontWeight = if (state.selectedColor == colorItem.name) FontWeight.SemiBold else FontWeight.Normal
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    viewModel.selectColor(colorItem.name)
+                                    colorDropdownExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
             }
