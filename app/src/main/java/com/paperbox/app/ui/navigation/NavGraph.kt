@@ -20,9 +20,9 @@ import com.paperbox.app.ui.materials.MaterialsScreen
 import com.paperbox.app.ui.media.MediaViewerScreen
 import com.paperbox.app.ui.analysis.AnalysisScreen
 import com.paperbox.app.ui.settings.SettingsScreen
+import com.paperbox.app.R
 import com.paperbox.app.ui.components.BottomNavBar
 import com.paperbox.app.ui.components.BottomNavItem
-import com.paperbox.app.ui.components.IconType
 import java.net.URLDecoder
 
 sealed class Screen(val route: String, val title: String) {
@@ -35,22 +35,22 @@ sealed class Screen(val route: String, val title: String) {
 
 val bottomTabs = listOf(
     Screen.Quote,
+    Screen.Materials,   // 素材在规格前面
     Screen.SizeGuide,
-    Screen.Materials,
     Screen.Analysis,
     Screen.Profile
 )
 
 /** 将 Screen 映射为 BottomNavItem */
 private fun Screen.toBottomNavItem(): BottomNavItem {
-    val iconType = when (this) {
-        Screen.Quote -> IconType.QUOTE
-        Screen.SizeGuide -> IconType.SIZE_GUIDE
-        Screen.Materials -> IconType.MATERIALS
-        Screen.Analysis -> IconType.ANALYSIS
-        Screen.Profile -> IconType.PROFILE
+    val iconRes = when (this) {
+        Screen.Quote -> R.drawable.ic_nav_quote
+        Screen.SizeGuide -> R.drawable.ic_nav_sizeguide
+        Screen.Materials -> R.drawable.ic_nav_materials
+        Screen.Analysis -> R.drawable.ic_nav_analysis
+        Screen.Profile -> R.drawable.ic_nav_profile
     }
-    return BottomNavItem(route = route, label = title, iconType = iconType)
+    return BottomNavItem(route = route, label = title, iconRes = iconRes)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
