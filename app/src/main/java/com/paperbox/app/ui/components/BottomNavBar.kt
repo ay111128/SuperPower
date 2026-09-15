@@ -30,8 +30,8 @@ import androidx.compose.ui.unit.sp
 // 设计稿颜色定义
 private val SelectedGreen = Color(0xFF1B8A3E)           // 激活状态图标和文字颜色
 private val SelectedGreenBg = Color(0xFFC3F0A5)          // 激活状态圆形背景
-private val UnselectedIconColor = Color(0xFFA0A0A0)      // 未激活图标颜色
-private val UnselectedTextColor = Color(0xFFA0A0A0)      // 未激活文字颜色
+private val UnselectedIconColor = Color(0xFF808080)      // 未激活图标颜色
+private val UnselectedTextColor = Color(0xFF808080)      // 未激活文字颜色
 private val BarBackground = Color(0xFFFFFFFF)            // 白色背景
 private val BarShadow = Color(0x14000000)                // 阴影 rgba(0,0,0,0.08)
 
@@ -91,7 +91,7 @@ fun BottomNavBar(
                         modifier = Modifier
                             .size(44.dp)
                             .background(
-                                color = if (selected) SelectedGreenBg else Color.Transparent,
+                                color = Color.Transparent,
                                 shape = RoundedCornerShape(22.dp)
                             ),
                         contentAlignment = Alignment.Center,
