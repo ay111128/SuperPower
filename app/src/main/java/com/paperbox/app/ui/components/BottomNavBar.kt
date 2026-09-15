@@ -79,7 +79,6 @@ fun BottomNavBar(
                         ) { onItemSelected(item.route) },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
-                    gap = 2.dp,
                 ) {
                     // 图标容器 - 44dp圆形背景
                     Box(
@@ -103,6 +102,7 @@ fun BottomNavBar(
                         text = item.label,
                         fontSize = 11.sp,
                         lineHeight = 13.sp,
+                        modifier = Modifier.padding(top = 2.dp),
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                         color = if (selected) SelectedGreen else UnselectedTextColor,
                     )
