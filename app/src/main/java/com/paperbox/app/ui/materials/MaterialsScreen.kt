@@ -54,7 +54,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuItem
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -283,7 +283,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         onDismissRequest = { colorDropdownExpanded = false }
                     ) {
                         // "全部" 选项
-                        ExposedDropdownMenuItem(
+                        DropdownMenuItem(
                             text = { Text("全部", fontWeight = if (state.selectedColor.isBlank()) FontWeight.SemiBold else FontWeight.Normal) },
                             onClick = {
                                 viewModel.selectColor("")
@@ -292,7 +292,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         )
                         // 各颜色选项
                         state.colors.forEach { colorItem ->
-                            ExposedDropdownMenuItem(
+                            DropdownMenuItem(
                                 text = {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
