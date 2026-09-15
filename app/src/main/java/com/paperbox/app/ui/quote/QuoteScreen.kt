@@ -24,6 +24,7 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsState()
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("飞机盒报价") },

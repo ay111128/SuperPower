@@ -140,8 +140,8 @@ fun MediaViewerScreen(
                     @Suppress("DEPRECATION")
                     act.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
                 }
-                act.window.statusBarColor = android.graphics.Color.BLACK
-                act.window.navigationBarColor = android.graphics.Color.BLACK
+                act.window.statusBarColor = android.graphics.Color.TRANSPARENT
+                act.window.navigationBarColor = android.graphics.Color.TRANSPARENT
             }
         }
     }

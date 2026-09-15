@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun AnalysisScreen() {
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("对账分析") },

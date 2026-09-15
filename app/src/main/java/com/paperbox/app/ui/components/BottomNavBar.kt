@@ -82,15 +82,19 @@ fun BottomNavBar(
                     modifier = Modifier
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = ripple(),
+                            indication = null,
                         ) { onItemSelected(item.route) },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    // 图标背景：44dp圆形
+                    // 图标背景：44dp圆形（涟漪只包裹这里）
                     Box(
                         modifier = Modifier
                             .size(44.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = ripple(),
+                            ) { onItemSelected(item.route) }
                             .background(
                                 color = Color.Transparent,
                                 shape = RoundedCornerShape(22.dp)
