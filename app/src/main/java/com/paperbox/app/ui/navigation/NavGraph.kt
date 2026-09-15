@@ -2,12 +2,9 @@ package com.paperbox.app.ui.navigation
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -23,14 +20,17 @@ import com.paperbox.app.ui.materials.MaterialsScreen
 import com.paperbox.app.ui.media.MediaViewerScreen
 import com.paperbox.app.ui.analysis.AnalysisScreen
 import com.paperbox.app.ui.settings.SettingsScreen
+import com.paperbox.app.ui.components.BottomNavBar
+import com.paperbox.app.ui.components.BottomNavItem
+import com.paperbox.app.ui.components.IconType
 import java.net.URLDecoder
 
-sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
-    data object Quote : Screen("quote", "报价", Icons.Default.Calculate)
-    data object SizeGuide : Screen("sizeguide", "规格", Icons.Default.Straighten)
-    data object Materials : Screen("materials", "素材", Icons.Default.Image)
-    data object Analysis : Screen("analysis", "对账", Icons.Default.Analytics)
-    data object Settings : Screen("settings", "设置", Icons.Default.Settings)
+sealed class Screen(val route: String, val title: String) {
+    data object Quote : Screen("quote", "报价")
+    data object SizeGuide : Screen("sizeguide", "规格")
+    data object Materials : Screen("materials", "素材")
+    data object Analysis : Screen("analysis", "对账")
+    data object Profile : Screen("settings", "个人")
 }
 
 val bottomTabs = listOf(
@@ -38,8 +38,20 @@ val bottomTabs = listOf(
     Screen.SizeGuide,
     Screen.Materials,
     Screen.Analysis,
-    Screen.Settings
+    Screen.Profile
 )
+
+/** 将 Screen 映射为 BottomNavItem */
+private fun Screen.toBottomNavItem(): BottomNavItem {
+    val iconType = when (this) {
+        Screen.Quote -> IconType.QUOTE
+        Screen.SizeGuide -> IconType.SIZE_GUIDE
+        Screen.Materials -> IconType.MATERIALS
+        Screen.Analysis -> IconType.ANALYSIS
+        Screen.Profile -> IconType.PROFILE
+    }
+    return BottomNavItem(route = route, label = title, iconType = iconType)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,7 +83,7 @@ fun AppNavGraph() {
             composable(Screen.SizeGuide.route) { SizeGuideScreen() }
             composable(Screen.Materials.route) { MaterialsScreen(navController = navController) }
             composable(Screen.Analysis.route) { AnalysisScreen() }
-            composable(Screen.Settings.route) { SettingsScreen() }
+            composable(Screen.Profile.route) { SettingsScreen() }
 
             composable("media_viewer/{materialId}/{materialType}") { backStackEntry ->
                 val materialId = backStackEntry.arguments?.getString("materialId") ?: ""
@@ -95,26 +107,19 @@ fun AppNavGraph() {
         // 普通页面：有底部导航栏
         Scaffold(
             bottomBar = {
-                NavigationBar {
-                    val currentDestination = navBackStackEntry?.destination
-
-                    bottomTabs.forEach { screen ->
-                        NavigationBarItem(
-                            icon = { Icon(screen.icon, contentDescription = screen.title) },
-                            label = { Text(screen.title) },
-                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                            onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                BottomNavBar(
+                    items = bottomTabs.map { it.toBottomNavItem() },
+                    selectedRoute = currentRoute ?: Screen.Quote.route,
+                    onItemSelected = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
                             }
-                        )
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
-                }
+                )
             }
         ) { innerPadding ->
             navHost(Modifier.padding(innerPadding))
