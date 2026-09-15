@@ -177,44 +177,45 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // 搜索按钮
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 1.dp,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clickable { viewModel.showSearchDialog() }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = "搜索",
+                        // 搜索按钮
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 1.dp,
                             modifier = Modifier
-                                .padding(8.dp)
-                                .size(24.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    // 上传按钮
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color.White,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clickable { viewModel.showUploadSheet() }
-                    ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = "上传",
+                                .size(40.dp)
+                                .clickable { viewModel.showSearchDialog() }
+                        ) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "搜索",
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .size(24.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        // 上传按钮
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color.White,
                             modifier = Modifier
-                                .padding(10.dp)
-                                .size(24.dp),
-                            tint = Color(0xFF1B8A3E)
-                        )
+                                .size(44.dp)
+                                .clickable { viewModel.showUploadSheet() }
+                        ) {
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = "上传",
+                                modifier = Modifier
+                                    .padding(10.dp)
+                                    .size(24.dp),
+                                tint = Color(0xFF1B8A3E)
+                            )
+                        }
                     }
                 }
             }
