@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -293,20 +294,18 @@ private fun DrawScope.drawAnalysisIcon(
     }
     drawPath(tail, color)
 
-    // 气泡内文字线
-    drawLine(
+    // 气泡内文字线（用圆角矩形模拟圆角线条）
+    drawRoundRect(
         color = Color.White,
-        start = Offset(left + size * 0.28f, top + size * 0.25f),
-        end = Offset(left + size * 0.72f, top + size * 0.25f),
-        strokeWidth = size * 0.05f,
-        strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+        topLeft = Offset(left + size * 0.28f, top + size * 0.22f),
+        size = Size(size * 0.44f, size * 0.06f),
+        cornerRadius = CornerRadius(size * 0.03f)
     )
-    drawLine(
+    drawRoundRect(
         color = Color.White,
-        start = Offset(left + size * 0.28f, top + size * 0.42f),
-        end = Offset(left + size * 0.6f, top + size * 0.42f),
-        strokeWidth = size * 0.05f,
-        strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+        topLeft = Offset(left + size * 0.28f, top + size * 0.39f),
+        size = Size(size * 0.32f, size * 0.06f),
+        cornerRadius = CornerRadius(size * 0.03f)
     )
 }
 
@@ -324,7 +323,7 @@ private fun DrawScope.drawProfileIcon(
     // 身体（半圆形）
     val body = Path().apply {
         addArc(
-            rectangular = Rect(
+            oval = Rect(
                 left + size * 0.15f, top + size * 0.5f,
                 left + size * 0.85f, top + size * 1.1f
             ),
