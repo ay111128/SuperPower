@@ -7,13 +7,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -27,7 +25,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -64,7 +61,7 @@ fun BottomNavBar(
     val textMeasurer = rememberTextMeasurer()
 
     val labelStyle = TextStyle(
-        fontSize = 10.sp,
+        fontSize = 13.sp,
         fontWeight = FontWeight.Medium
     )
 
@@ -95,7 +92,7 @@ fun BottomNavBar(
                     Canvas(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
+                            .height(72.dp)
                     ) {
                         val canvasWidth = size.width
                         val canvasHeight = size.height
@@ -105,20 +102,20 @@ fun BottomNavBar(
                             drawOval(
                                 color = EllipseGreen,
                                 topLeft = Offset(
-                                    canvasWidth * 0.05f,
-                                    canvasHeight * 0.02f
+                                    canvasWidth * 0.08f,
+                                    canvasHeight * 0.0f
                                 ),
                                 size = Size(
-                                    canvasWidth * 0.9f,
-                                    canvasHeight * 0.78f
+                                    canvasWidth * 0.84f,
+                                    canvasHeight * 0.72f
                                 )
                             )
                         }
 
-                        // 绘制图标
-                        val iconSize = 20f
+                        // 图标：占画布宽度的 ~42%，居中
+                        val iconSize = canvasWidth * 0.42f
                         val iconLeft = (canvasWidth - iconSize) / 2f
-                        val iconTop = 4f
+                        val iconTop = canvasHeight * 0.02f
 
                         when (item.iconType) {
                             IconType.QUOTE -> drawQuoteIcon(
@@ -138,10 +135,10 @@ fun BottomNavBar(
                             )
                         }
 
-                        // 绘制标签文字
+                        // 标签文字：垂直居中在图标下方区域
                         val measured = textMeasurer.measure(item.label, labelStyle)
                         val textX = (canvasWidth - measured.size.width) / 2f
-                        val textY = canvasHeight - measured.size.height - 1f
+                        val textY = canvasHeight * 0.72f + (canvasHeight * 0.28f - measured.size.height) / 2f
 
                         drawText(
                             textLayoutResult = measured,
