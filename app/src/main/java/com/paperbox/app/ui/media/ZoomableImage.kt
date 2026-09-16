@@ -75,7 +75,7 @@ fun ZoomableImage(
                 } else {
                     Modifier
                 }
-            },
+            )
         alignment = Alignment.Center
     )
 }
