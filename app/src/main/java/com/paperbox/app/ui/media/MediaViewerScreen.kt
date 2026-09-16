@@ -418,7 +418,7 @@ private fun VideoPlayer(
     onLongPress: (() -> Unit)? = null,
     onTap: (() -> Unit)? = null
 ) {
-    AndroidView(
+    AndroidView<FrameLayout>(
         factory = { ctx ->
             val container = FrameLayout(ctx).apply {
                 layoutParams = FrameLayout.LayoutParams(
@@ -467,7 +467,7 @@ private fun VideoPlayer(
             container
         },
         modifier = modifier,
-        onRelease = { view ->
+        onRelease = { view: FrameLayout ->
             val player = view.tag as? ExoPlayer
             player?.release()
         }
