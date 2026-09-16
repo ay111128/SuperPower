@@ -375,13 +375,24 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     initialFirstVisibleItemScrollOffset = state.scrollOffset
                 )
 
-                // 保存滚动位置
-                val currentListState = if (state.layoutMode == "grid") gridState else listState
+                // 保存滚动位置 - Grid模式
                 val coroutineScope = rememberCoroutineScope()
-                DisposableEffect(currentListState) {
+                DisposableEffect(gridState) {
                     val job = coroutineScope.launch {
                         snapshotFlow {
-                            currentListState.firstVisibleItemIndex to currentListState.firstVisibleItemScrollOffset
+                            gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset
+                        }.collect { (index, offset) ->
+                            viewModel.saveScrollPosition(index, offset)
+                        }
+                    }
+                    onDispose { job.cancel() }
+                }
+
+                // 保存滚动位置 - List模式
+                DisposableEffect(listState) {
+                    val job = coroutineScope.launch {
+                        snapshotFlow {
+                            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
                         }.collect { (index, offset) ->
                             viewModel.saveScrollPosition(index, offset)
                         }
