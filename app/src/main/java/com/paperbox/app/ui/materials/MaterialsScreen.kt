@@ -21,11 +21,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -43,20 +42,19 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.VideoFile
-import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -75,6 +73,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -82,8 +81,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import android.util.Log
 import coil.compose.SubcomposeAsyncImage
@@ -93,6 +92,18 @@ import com.paperbox.app.data.api.models.MaterialItem
 import androidx.navigation.NavController
 import java.net.URLEncoder
 
+// ── 设计稿颜色 ──
+private val BgGray = Color(0xFFF5F5F5)
+private val Green = Color(0xFF1B8A3E)
+private val FilterBg = Color(0xFFFFFFFF)
+private val FilterBorder = Color(0xFFE5E5E5)
+private val ToggleBg = Color(0xFFF0F0F0)
+private val CardBg = Color(0xFFFFFFFF)
+private val TagBg = Color(0xFFF0F0F0)
+private val TagText = Color(0xFF888888)
+private val SizeText = Color(0xFF999999)
+private val LabelGray = Color(0xFF888888)
+
 // ── 类型渐变色 ──
 private object MaterialTypeColors {
     data class TypeStyle(val name: String, val gradient: Brush, val icon: ImageVector)
@@ -100,17 +111,17 @@ private object MaterialTypeColors {
     fun styleFor(type: String): TypeStyle = when {
         type.startsWith("image") -> TypeStyle(
             "图片",
-            Brush.linearGradient(listOf(Color(0xFF6AA6FF), Color(0xFF3B5BFF))),
+            Brush.linearGradient(listOf(Color(0xFFC4956A), Color(0xFFB8845A))),
             Icons.Default.Image
         )
         type.startsWith("video") -> TypeStyle(
             "视频",
-            Brush.linearGradient(listOf(Color(0xFFC77CFF), Color(0xFF8A3DFF))),
+            Brush.linearGradient(listOf(Color(0xFFB8845A), Color(0xFFA0704A))),
             Icons.Default.VideoFile
         )
         type.contains("pdf") || type.contains("document") || type.contains("msword") -> TypeStyle(
-            "文档",
-            Brush.linearGradient(listOf(Color(0xFFFFC27A), Color(0xFFFF8A3D))),
+            "PDF",
+            Brush.linearGradient(listOf(Color(0xFFA8D8EA), Color(0xFF88B8D0))),
             Icons.Default.Description
         )
         type.contains("zip") || type.contains("compressed") || type.contains("archive") -> TypeStyle(
@@ -128,9 +139,9 @@ private object MaterialTypeColors {
 
 // ── 格式化文件大小 ──
 private fun formatSize(bytes: Long): String = when {
-    bytes >= 1_048_576 -> "%.1f MB".format(bytes / 1_048_576.0)
-    bytes >= 1024 -> "%.0f KB".format(bytes / 1024.0)
-    else -> "$bytes B"
+    bytes >= 1_048_576 -> "%.1fMB".format(bytes / 1_048_576.0)
+    bytes >= 1024 -> "%.0fKB".format(bytes / 1024.0)
+    else -> "${bytes}B"
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -147,7 +158,6 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
         }
     }
 
-    // Toast
     LaunchedEffect(state.toastMessage) {
         state.toastMessage?.let {
             snackbarHostState.showSnackbar(it)
@@ -158,67 +168,52 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            // 顶部导航
+            // ── 顶部导航栏 ──
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF1B8A3E))
+                    .background(Color(0xFF007A12))
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .height(62.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "素材管理",
-                        style = MaterialTheme.typography.headlineMedium,
+                        text = "素材",
                         color = Color.White,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    IconButton(
+                        onClick = { viewModel.showSearchDialog() },
+                        modifier = Modifier.size(40.dp)
                     ) {
-                        // 搜索按钮
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 1.dp,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clickable { viewModel.showSearchDialog() }
-                        ) {
-                            Icon(
-                                Icons.Default.Search,
-                                contentDescription = "搜索",
-                                modifier = Modifier
-                                    .padding(8.dp)
-                                    .size(24.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        // 上传按钮
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = Color.White,
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clickable { viewModel.showUploadSheet() }
-                        ) {
-                            Icon(
-                                Icons.Default.Add,
-                                contentDescription = "上传",
-                                modifier = Modifier
-                                    .padding(10.dp)
-                                    .size(24.dp),
-                                tint = Color(0xFF1B8A3E)
-                            )
-                        }
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = "搜索",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
+            }
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { viewModel.showUploadSheet() },
+                containerColor = Green,
+                contentColor = Color.White,
+                shape = CircleShape,
+                modifier = Modifier
+                    .size(56.dp)
+                    .shadow(8.dp, CircleShape, ambientColor = Color(0x401B8A3E), spotColor = Color(0x401B8A3E))
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "上传", modifier = Modifier.size(28.dp))
             }
         }
     ) { padding ->
@@ -226,197 +221,79 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
+                .background(BgGray)
         ) {
-            // ── 颜色分类下拉框 ──
-            var colorDropdownExpanded by remember { mutableStateOf(false) }
-            val currentColorLabel = state.selectedColor.ifBlank { "全部" }
-
-            Box(
+            // ── 筛选栏 ──
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
+                    .background(FilterBg)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                ExposedDropdownMenuBox(
-                    expanded = colorDropdownExpanded,
-                    onExpandedChange = { colorDropdownExpanded = it }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.Bottom
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = ButtonDefaults.outlinedButtonBorder(enabled = true),
+                    // 分类下拉
+                    FilterDropdown(
+                        label = "分类",
+                        options = listOf("全部") + state.colors.map { it.name },
+                        selectedIndex = if (state.selectedColor.isBlank()) 0
+                            else state.colors.indexOfFirst { it.name == state.selectedColor } + 1,
+                        onSelect = { idx ->
+                            viewModel.selectColor(if (idx == 0) "" else state.colors[idx - 1].name)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    // 标签下拉
+                    FilterDropdown(
+                        label = "标签",
+                        options = listOf("全部") + state.tags,
+                        selectedIndex = 0, // simplified: always "全部"
+                        onSelect = { },
+                        modifier = Modifier.weight(1f)
+                    )
+                    // 类型下拉
+                    FilterDropdown(
+                        label = "类型",
+                        options = listOf("全部", "图片", "视频", "文档"),
+                        selectedIndex = 0,
+                        onSelect = { },
+                        modifier = Modifier.weight(1f)
+                    )
+                    // 视图切换
+                    Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
+                            .height(42.dp)
+                            .background(ToggleBg, RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        IconButton(
+                            onClick = { if (state.layoutMode != "grid") viewModel.toggleLayout() },
+                            modifier = Modifier.size(24.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                // 如果选了颜色，显示色块圆点
-                                if (state.selectedColor.isNotBlank()) {
-                                    val selectedColorItem = state.colors.find { it.name == state.selectedColor }
-                                    if (selectedColorItem != null) {
-                                        Surface(
-                                            shape = RoundedCornerShape(50),
-                                            color = try {
-                                                Color(android.graphics.Color.parseColor(selectedColorItem.hex))
-                                            } catch (_: Exception) { Color.Gray },
-                                            modifier = Modifier.size(14.dp)
-                                        ) {}
-                                    }
-                                }
-                                Text(
-                                    text = currentColorLabel,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
                             Icon(
-                                Icons.Default.ArrowDropDown,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                Icons.Default.GridView,
+                                contentDescription = "网格",
+                                modifier = Modifier.size(16.dp),
+                                tint = if (state.layoutMode == "grid") Green else Color(0xFFBBBBBB)
                             )
                         }
-                    }
-
-                    ExposedDropdownMenu(
-                        expanded = colorDropdownExpanded,
-                        onDismissRequest = { colorDropdownExpanded = false }
-                    ) {
-                        // "全部" 选项
-                        DropdownMenuItem(
-                            text = { Text("全部", fontWeight = if (state.selectedColor.isBlank()) FontWeight.SemiBold else FontWeight.Normal) },
-                            onClick = {
-                                viewModel.selectColor("")
-                                colorDropdownExpanded = false
-                            }
-                        )
-                        // 各颜色选项
-                        state.colors.forEach { colorItem ->
-                            DropdownMenuItem(
-                                text = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        Surface(
-                                            shape = RoundedCornerShape(50),
-                                            color = try {
-                                                Color(android.graphics.Color.parseColor(colorItem.hex))
-                                            } catch (_: Exception) { Color.Gray },
-                                            modifier = Modifier.size(16.dp)
-                                        ) {}
-                                        Text(
-                                            text = colorItem.name,
-                                            fontWeight = if (state.selectedColor == colorItem.name) FontWeight.SemiBold else FontWeight.Normal
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    viewModel.selectColor(colorItem.name)
-                                    colorDropdownExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ── 标签筛选 ──
-            if (state.tags.isNotEmpty()) {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                ) {
-                    item {
-                        Text(
-                            "标签",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    items(state.tags) { tag ->
-                        val isSelected = tag in state.selectedTags
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSelected) Color(0xFFFFF7E8)
-                                   else MaterialTheme.colorScheme.surface,
-                            border = ButtonDefaults.outlinedButtonBorder(enabled = !isSelected),
-                            modifier = Modifier.clickable { viewModel.toggleTag(tag) }
+                        IconButton(
+                            onClick = { if (state.layoutMode != "list") viewModel.toggleLayout() },
+                            modifier = Modifier.size(24.dp)
                         ) {
-                            Text(
-                                text = tag,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isSelected) Color(0xFFB45309)
-                                       else MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            Icon(
+                                Icons.Default.ViewList,
+                                contentDescription = "列表",
+                                modifier = Modifier.size(16.dp),
+                                tint = if (state.layoutMode == "list") Green else Color(0xFFBBBBBB)
                             )
                         }
-                    }
-                }
-            }
-
-            // ── 统计条 ──
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "共 ${state.total} 个素材",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    // 网格布局按钮
-                    IconButton(
-                        onClick = { if (state.layoutMode != "grid") viewModel.toggleLayout() },
-                        modifier = Modifier
-                            .size(30.dp)
-                            .background(
-                                if (state.layoutMode == "grid") MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surface,
-                                RoundedCornerShape(8.dp)
-                            )
-                    ) {
-                        Icon(
-                            Icons.Default.GridView,
-                            contentDescription = "网格",
-                            modifier = Modifier.size(16.dp),
-                            tint = if (state.layoutMode == "grid") MaterialTheme.colorScheme.primary
-                                   else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    // 列表布局按钮
-                    IconButton(
-                        onClick = { if (state.layoutMode != "list") viewModel.toggleLayout() },
-                        modifier = Modifier
-                            .size(30.dp)
-                            .background(
-                                if (state.layoutMode == "list") MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surface,
-                                RoundedCornerShape(8.dp)
-                            )
-                    ) {
-                        Icon(
-                            Icons.Default.ViewList,
-                            contentDescription = "列表",
-                            modifier = Modifier.size(16.dp),
-                            tint = if (state.layoutMode == "list") MaterialTheme.colorScheme.primary
-                                   else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
             }
@@ -426,39 +303,24 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
             // ── 素材区 ──
             if (state.isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(color = Green)
                 }
             } else if (state.materials.isEmpty()) {
-                // 空状态
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Surface(
-                            shape = RoundedCornerShape(28.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            border = ButtonDefaults.outlinedButtonBorder(enabled = true),
-                            modifier = Modifier.size(96.dp)
-                        ) {
-                            Icon(
-                                Icons.Outlined.CloudUpload,
-                                contentDescription = null,
-                                modifier = Modifier.padding(24.dp),
-                                tint = Color(0xFFAEB7D0)
-                            )
-                        }
-                        Spacer(Modifier.height(18.dp))
                         Text(
                             "暂无匹配的素材",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface
+                            fontSize = 15.sp,
+                            color = Color(0xFF333333)
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "试试清除筛选条件，\n或点击右上角「+」上传新素材",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            "试试清除筛选条件，\n或点击右下角「+」上传新素材",
+                            fontSize = 13.sp,
+                            color = SizeText,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -467,9 +329,9 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                 when (state.layoutMode) {
                     "grid" -> LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(state.materials, key = { it.id }) { material ->
                             MaterialGridCard(
@@ -484,7 +346,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         }
                     }
                     "list" -> LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(state.materials, key = { it.id }) { material ->
@@ -551,11 +413,9 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     .padding(bottom = 16.dp),
                 textAlign = TextAlign.Center
             )
-
-            // 选择本地文件
             ListItem(
                 headlineContent = { Text("选择本地文件") },
-                supportingContent = { Text("支持图片 / 文档 / 视频 / 压缩包，可多选") },
+                supportingContent = { Text("支持图片 / 视频，可多选") },
                 leadingContent = {
                     Surface(
                         shape = RoundedCornerShape(11.dp),
@@ -575,8 +435,6 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     filePicker.launch("image/*,video/*")
                 }
             )
-
-            // 从相册导入
             ListItem(
                 headlineContent = { Text("从相册导入") },
                 supportingContent = { Text("直接选择手机相册中的图片") },
@@ -599,7 +457,6 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     filePicker.launch("image/*")
                 }
             )
-
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -619,72 +476,36 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     .padding(bottom = 16.dp),
                 textAlign = TextAlign.Center
             )
-
-            // 下载
             ListItem(
                 headlineContent = { Text("下载素材") },
                 supportingContent = { Text("保存到本地") },
                 leadingContent = {
-                    Surface(
-                        shape = RoundedCornerShape(11.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.FileDownload,
-                            contentDescription = null,
-                            modifier = Modifier.padding(8.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                    Surface(shape = RoundedCornerShape(11.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.padding(8.dp), tint = MaterialTheme.colorScheme.primary)
                     }
                 },
                 modifier = Modifier.clickable { viewModel.downloadMaterial() }
             )
-
-            // 编辑标签
             ListItem(
                 headlineContent = { Text("编辑标签") },
                 supportingContent = { Text("修改素材所属标签") },
                 leadingContent = {
-                    Surface(
-                        shape = RoundedCornerShape(11.dp),
-                        color = Color(0xFFFFF3E0),
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Label,
-                            contentDescription = null,
-                            modifier = Modifier.padding(8.dp),
-                            tint = Color(0xFFED8936)
-                        )
+                    Surface(shape = RoundedCornerShape(11.dp), color = Color(0xFFFFF3E0), modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Label, contentDescription = null, modifier = Modifier.padding(8.dp), tint = Color(0xFFED8936))
                     }
                 },
                 modifier = Modifier.clickable { viewModel.showTagDialogForMaterial() }
             )
-
-            // 删除
             ListItem(
                 headlineContent = { Text("删除素材", color = MaterialTheme.colorScheme.error) },
-                supportingContent = {
-                    Text("删除后不可恢复，请谨慎操作", color = Color(0xFFF8A3A3))
-                },
+                supportingContent = { Text("删除后不可恢复", color = Color(0xFFF8A3A3)) },
                 leadingContent = {
-                    Surface(
-                        shape = RoundedCornerShape(11.dp),
-                        color = Color(0xFFFEE2E2),
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.padding(8.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
+                    Surface(shape = RoundedCornerShape(11.dp), color = Color(0xFFFEE2E2), modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.padding(8.dp), tint = MaterialTheme.colorScheme.error)
                     }
                 },
                 modifier = Modifier.clickable { viewModel.showDeleteDialog() }
             )
-
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -730,14 +551,10 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                 }
             },
             confirmButton = {
-                TextButton(onClick = { viewModel.saveMaterialTags() }) {
-                    Text("保存")
-                }
+                TextButton(onClick = { viewModel.saveMaterialTags() }) { Text("保存") }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissTagDialog() }) {
-                    Text("取消")
-                }
+                TextButton(onClick = { viewModel.dismissTagDialog() }) { Text("取消") }
             }
         )
     }
@@ -747,25 +564,85 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
         AlertDialog(
             onDismissRequest = { viewModel.dismissDeleteDialog() },
             title = { Text("确认删除？", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) },
-            text = {
-                Text("「${state.selectedMaterial?.name}」删除后将无法恢复")
-            },
+            text = { Text("「${state.selectedMaterial?.name}」删除后将无法恢复") },
             confirmButton = {
                 Button(
                     onClick = { viewModel.confirmDelete() },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("删除")
-                }
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("删除") }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissDeleteDialog() }) {
-                    Text("取消")
-                }
+                TextButton(onClick = { viewModel.dismissDeleteDialog() }) { Text("取消") }
             }
         )
+    }
+}
+
+// ── 筛选下拉框 ──
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilterDropdown(
+    label: String,
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, color = LabelGray, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it }
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(42.dp)
+                    .background(FilterBg, RoundedCornerShape(10.dp))
+                    .menuAnchor()
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        options.getOrElse(selectedIndex) { "全部" },
+                        fontSize = 11.sp,
+                        color = Color(0xFF333333)
+                    )
+                    Icon(
+                        Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color(0xFF999999)
+                    )
+                }
+            }
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                options.forEachIndexed { idx, text ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text,
+                                fontWeight = if (idx == selectedIndex) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        },
+                        onClick = {
+                            onSelect(idx)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -780,9 +657,9 @@ private fun MaterialGridCard(
     val typeStyle = MaterialTypeColors.styleFor(material.type)
 
     Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
@@ -792,13 +669,11 @@ private fun MaterialGridCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(132.dp)
+                    .height(100.dp)
                     .background(typeStyle.gradient)
             ) {
                 if (material.type.startsWith("image")) {
-                    // 图片类型：显示真实图片
                     val imageUrl = "${BuildConfig.API_BASE_URL}/materials-api/materials/${material.id}/file"
-                    Log.d("MaterialsCard", "Loading image: $imageUrl")
                     SubcomposeAsyncImage(
                         model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
                             .data(imageUrl)
@@ -809,25 +684,19 @@ private fun MaterialGridCard(
                         contentScale = ContentScale.Crop,
                         loading = {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
                             }
                         },
                         error = {
-                            Log.e("MaterialsCard", "Image load failed: $imageUrl")
                             Box(
                                 modifier = Modifier.fillMaxSize().background(typeStyle.gradient),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(typeStyle.icon, contentDescription = null, modifier = Modifier.size(24.dp), tint = Color.White.copy(alpha = 0.7f))
-                                    Spacer(Modifier.height(4.dp))
-                                    Text("加载失败", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
-                                }
+                                Icon(typeStyle.icon, contentDescription = null, modifier = Modifier.size(24.dp), tint = Color.White.copy(alpha = 0.7f))
                             }
                         }
                     )
                 } else if (material.type.startsWith("video") && videoThumbnail != null) {
-                    // 视频：显示缩略图
                     androidx.compose.foundation.Image(
                         bitmap = videoThumbnail.asImageBitmap(),
                         contentDescription = null,
@@ -835,79 +704,60 @@ private fun MaterialGridCard(
                         contentScale = ContentScale.Crop
                     )
                 } else {
-                    // 其他类型：显示渐变背景 + 类型图标
                     Icon(
                         typeStyle.icon,
                         contentDescription = null,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .size(40.dp),
+                        modifier = Modifier.align(Alignment.Center).size(32.dp),
                         tint = Color.White.copy(alpha = 0.9f)
                     )
                 }
                 // 类型 badge
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color.White.copy(alpha = 0.22f),
-                    modifier = Modifier.padding(8.dp)
+                    shape = RoundedCornerShape(4.dp),
+                    color = Color.Black.copy(alpha = 0.25f),
+                    modifier = Modifier.padding(8.dp).align(Alignment.BottomStart)
                 ) {
                     Text(
                         text = typeStyle.name,
                         color = Color.White,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
             }
 
             // 信息区
-            Column(modifier = Modifier.padding(horizontal = 11.dp, vertical = 10.dp)) {
-                Spacer(Modifier.height(7.dp))
+            Column(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                // 标签行
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        if (material.tags.isNotEmpty()) {
+                    if (material.tags.isNotEmpty()) {
+                        material.tags.take(2).forEach { tag ->
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFFFFF7E8)
+                                shape = RoundedCornerShape(4.dp),
+                                color = TagBg
                             ) {
                                 Text(
-                                    text = "# ${material.tags.first()}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFFB45309),
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                    text = tag,
+                                    fontSize = 10.sp,
+                                    color = TagText,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
-                        Text(
-                            text = formatSize(material.size),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(7.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier
-                            .size(26.dp)
-                            .clickable { onMore() }
-                    ) {
-                        Icon(
-                            Icons.Default.MoreVert,
-                            contentDescription = "更多",
-                            modifier = Modifier.padding(5.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
+                // 文件大小
+                Text(
+                    text = formatSize(material.size),
+                    fontSize = 11.sp,
+                    color = SizeText
+                )
             }
         }
     }
@@ -924,9 +774,9 @@ private fun MaterialListCard(
     val typeStyle = MaterialTypeColors.styleFor(material.type)
 
     Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
@@ -935,7 +785,6 @@ private fun MaterialListCard(
             modifier = Modifier.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 小缩略图
             Box(
                 modifier = Modifier
                     .size(52.dp)
@@ -947,9 +796,7 @@ private fun MaterialListCard(
                     val imageUrl = "${BuildConfig.API_BASE_URL}/materials-api/materials/${material.id}/file"
                     SubcomposeAsyncImage(
                         model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                            .data(imageUrl)
-                            .crossfade(true)
-                            .build(),
+                            .data(imageUrl).crossfade(true).build(),
                         contentDescription = material.name,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
@@ -965,47 +812,31 @@ private fun MaterialListCard(
                         contentScale = ContentScale.Crop
                     )
                 } else {
-                    Icon(
-                        typeStyle.icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(22.dp),
-                        tint = Color.White.copy(alpha = 0.9f)
-                    )
+                    Icon(typeStyle.icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = Color.White.copy(alpha = 0.9f))
                 }
             }
-
             Spacer(Modifier.width(12.dp))
-
             Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (material.tags.isNotEmpty()) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFFFFF7E8)
-                        ) {
-                            Text(
-                                text = "# ${material.tags.first()}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFFB45309),
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
-                            )
+                        material.tags.take(2).forEach { tag ->
+                            Surface(shape = RoundedCornerShape(4.dp), color = TagBg) {
+                                Text(
+                                    text = tag,
+                                    fontSize = 10.sp,
+                                    color = TagText,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                     }
-                    Text(
-                        text = formatSize(material.size),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
+                Spacer(Modifier.height(2.dp))
+                Text(formatSize(material.size), fontSize = 11.sp, color = SizeText)
             }
-
-            // 更多按钮
             Surface(
                 shape = RoundedCornerShape(7.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
+                color = ToggleBg,
                 modifier = Modifier
                     .size(26.dp)
                     .clickable { onMore() }
@@ -1014,7 +845,7 @@ private fun MaterialListCard(
                     Icons.Default.MoreVert,
                     contentDescription = "更多",
                     modifier = Modifier.padding(5.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = Color(0xFF999999)
                 )
             }
         }

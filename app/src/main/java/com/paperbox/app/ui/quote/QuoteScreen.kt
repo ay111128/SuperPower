@@ -1,22 +1,40 @@
 package com.paperbox.app.ui.quote
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
-import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.paperbox.app.domain.model.*
 import com.paperbox.app.ui.theme.*
+
+// ── 设计稿颜色 ──
+private val BgGray = Color(0xFFF5F5F5)
+private val SectionTitle = Color(0xFF1A1A1A)
+private val LabelGray = Color(0xFF888888)
+private val ValueDark = Color(0xFF1A1A1A)
+private val UnitGray = Color(0xFFBBBBBB)
+private val InputBorder = Color(0xFFEEEEEE)
+private val SelectBorder = Color(0xFFE5E5E5)
+private val SelectLabel = Color(0xFF333333)
+private val SelectPlaceholder = Color(0xFFBBBBBB)
+private val Green = Color(0xFF1B8A3E)
+private val GreenShadow = Color(0x331B8A3E)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,14 +47,15 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
             TopAppBar(
                 title = {
                     Text(
-                        "飞机盒报价",
-                        modifier = Modifier.statusBarsPadding()
+                        "报价",
+                        modifier = Modifier.statusBarsPadding(),
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF1B8A3E),
-                    titleContentColor = Color.White,
-                    actionIconContentColor = Color.White
+                    containerColor = Color(0xFF007A12)
                 ),
                 windowInsets = WindowInsets(0, 0, 0, 0),
                 actions = {
@@ -44,7 +63,7 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
                         onClick = { viewModel.reset() },
                         modifier = Modifier.statusBarsPadding()
                     ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "重置")
+                        Icon(Icons.Default.Refresh, contentDescription = "重置", tint = Color.White)
                     }
                 }
             )
@@ -53,201 +72,161 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
         Column(
             modifier = Modifier
                 .padding(padding)
+                .fillMaxSize()
+                .background(BgGray)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(20.dp, 16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // ── 尺寸输入 ──
-            Card {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("尺寸 (cm)", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = if (state.form.length > 0) state.form.length.toString() else "",
-                            onValueChange = { viewModel.updateLength(it) },
-                            label = { Text("长 L") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = if (state.form.width > 0) state.form.width.toString() else "",
-                            onValueChange = { viewModel.updateWidth(it) },
-                            label = { Text("宽 W") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = if (state.form.height > 0) state.form.height.toString() else "",
-                            onValueChange = { viewModel.updateHeight(it) },
-                            label = { Text("高 H") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = if (state.form.orderQuantity > 0) state.form.orderQuantity.toString() else "",
-                        onValueChange = { viewModel.updateQuantity(it) },
-                        label = { Text("数量") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+            // ── 📦 尺寸信息 ──
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "📦 尺寸信息",
+                    color = SectionTitle,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DimensionInput(
+                        label = "长",
+                        value = if (state.form.length > 0) state.form.length.toString() else "",
+                        unit = "cm",
+                        onValueChange = { viewModel.updateLength(it) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DimensionInput(
+                        label = "宽",
+                        value = if (state.form.width > 0) state.form.width.toString() else "",
+                        unit = "cm",
+                        onValueChange = { viewModel.updateWidth(it) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DimensionInput(
+                        label = "高",
+                        value = if (state.form.height > 0) state.form.height.toString() else "",
+                        unit = "cm",
+                        onValueChange = { viewModel.updateHeight(it) },
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
 
-            // ── 材质选择 ──
-            Card {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("材质", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(8.dp))
-                    state.materialConfigs.forEach { config ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = state.form.materialKey == config.key,
-                                onClick = { viewModel.updateMaterialKey(config.key) }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Column {
-                                Text(config.label, style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    "${config.unitPrice}元/m²",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                )
-                            }
-                        }
-                    }
+            // ── 📊 生产信息 ──
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "📊 生产信息",
+                    color = SectionTitle,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DimensionInput(
+                        label = "数量",
+                        value = if (state.form.orderQuantity > 0) state.form.orderQuantity.toString() else "",
+                        unit = "个",
+                        onValueChange = { viewModel.updateQuantity(it) },
+                        keyboardType = KeyboardType.Number,
+                        modifier = Modifier.weight(1f)
+                    )
+                    DimensionInput(
+                        label = "利润",
+                        value = if (state.form.profitPercentage > 0) state.form.profitPercentage.toString() else "",
+                        unit = "%",
+                        onValueChange = { viewModel.updateProfitPercentage(it) },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
 
-            // ── 排版选择 ──
-            Card {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("排版", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        LayoutKey.entries.forEach { key ->
-                            FilterChip(
-                                selected = state.form.selectedLayout == key,
-                                onClick = { viewModel.updateLayout(key) },
-                                label = { Text(key.label) }
-                            )
-                        }
-                    }
+            // ── 🔧 材质与工艺 ──
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "🔧 材质与工艺",
+                    color = SectionTitle,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MaterialDropdown(
+                        label = "飞机盒材质",
+                        options = state.materialConfigs.map { it.key to it.label },
+                        selectedKey = state.form.materialKey,
+                        onSelect = { viewModel.updateMaterialKey(it) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    LayoutDropdown(
+                        label = "工艺",
+                        options = LayoutKey.entries.map { it to it.label },
+                        selectedKey = state.form.selectedLayout,
+                        onSelect = { viewModel.updateLayout(it) },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
 
-            // ── 利润设置 ──
-            Card {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("利润", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = state.form.profitMode == ProfitMode.PERCENTAGE,
-                            onClick = { viewModel.updateProfitMode(ProfitMode.PERCENTAGE) },
-                            label = { Text("百分比 %") }
-                        )
-                        FilterChip(
-                            selected = state.form.profitMode == ProfitMode.AMOUNT,
-                            onClick = { viewModel.updateProfitMode(ProfitMode.AMOUNT) },
-                            label = { Text("金额 ¥") }
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    when (state.form.profitMode) {
-                        ProfitMode.PERCENTAGE -> {
-                            OutlinedTextField(
-                                value = if (state.form.profitPercentage > 0) state.form.profitPercentage.toString() else "",
-                                onValueChange = { viewModel.updateProfitPercentage(it) },
-                                label = { Text("利润率 %") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true
-                            )
-                        }
-                        ProfitMode.AMOUNT -> {
-                            OutlinedTextField(
-                                value = if (state.form.profitAmount > 0) state.form.profitAmount.toString() else "",
-                                onValueChange = { viewModel.updateProfitAmount(it) },
-                                label = { Text("利润金额 ¥") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ── 计算按钮 ──
-            Button(
-                onClick = { viewModel.recalculate() },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = state.form.length > 0 && state.form.width > 0 && state.form.height > 0 && state.form.orderQuantity > 0
+            // ── 生成报价按钮 ──
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .shadow(12.dp, RoundedCornerShape(14.dp), ambientColor = GreenShadow, spotColor = GreenShadow)
+                    .background(Green, RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Calculate, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("计算报价")
+                Button(
+                    onClick = { viewModel.recalculate() },
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    elevation = null,
+                    contentPadding = PaddingValues(0.dp),
+                    enabled = state.form.length > 0 && state.form.width > 0 && state.form.height > 0 && state.form.orderQuantity > 0
+                ) {
+                    Text(
+                        "生成报价",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
 
             // ── 报价结果 ──
             state.result?.let { result ->
                 Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("报价结果", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(8.dp))
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("报价结果", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        HorizontalDivider(color = InputBorder)
 
                         result.chargeLines.forEach { line ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(line.name, style = MaterialTheme.typography.bodyMedium)
-                                Text("¥${String.format("%.2f", line.amount)}", style = MaterialTheme.typography.bodyMedium)
+                                Text(line.name, fontSize = 14.sp, color = Color(0xFF666666))
+                                Text("¥${String.format("%.2f", line.amount)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
 
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(color = InputBorder)
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("小计", style = MaterialTheme.typography.bodyMedium)
-                            Text("¥${String.format("%.2f", result.subtotal)}", style = MaterialTheme.typography.bodyMedium)
-                        }
-
-                        if (state.form.extraFeeEnabled) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("附加费", style = MaterialTheme.typography.bodyMedium)
-                                Text("¥${String.format("%.2f", state.form.extraFee)}", style = MaterialTheme.typography.bodyMedium)
-                            }
+                            Text("小计", fontSize = 14.sp, color = Color(0xFF666666))
+                            Text("¥${String.format("%.2f", result.subtotal)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("利润", style = MaterialTheme.typography.bodyMedium)
-                            Text("¥${String.format("%.2f", result.profitAmount)}", style = MaterialTheme.typography.bodyMedium)
+                            Text("利润", fontSize = 14.sp, color = Color(0xFF666666))
+                            Text("¥${String.format("%.2f", result.profitAmount)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Green)
                         }
 
                         if (result.specialFeesSum > 0) {
@@ -255,58 +234,55 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("特殊费用", style = MaterialTheme.typography.bodyMedium)
-                                Text("¥${String.format("%.2f", result.specialFeesSum)}", style = MaterialTheme.typography.bodyMedium)
+                                Text("特殊费用", fontSize = 14.sp, color = Color(0xFF666666))
+                                Text("¥${String.format("%.2f", result.specialFeesSum)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
 
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(color = InputBorder)
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("总价", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text("总价", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             Text(
                                 "¥${String.format("%.2f", result.finalAmount)}",
-                                style = MaterialTheme.typography.titleLarge,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = Green
                             )
                         }
 
                         if (state.form.orderQuantity > 0) {
                             Text(
                                 "单价 ¥${String.format("%.2f", result.finalAmount / state.form.orderQuantity)} | 总重 ${String.format("%.1f", result.totalWeight)}kg",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                fontSize = 12.sp,
+                                color = UnitGray
                             )
                         }
 
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(4.dp))
 
                         // 保存按钮
                         Button(
                             onClick = { viewModel.saveQuoteRecord() },
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = !state.isLoading
+                            enabled = !state.isLoading,
+                            shape = RoundedCornerShape(10.dp)
                         ) {
                             if (state.isLoading) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
                             } else {
-                                Icon(Icons.Default.Save, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
                                 Text("保存记录")
                             }
                         }
 
                         // 追溯码
                         state.traceCode?.let { code ->
-                            Spacer(Modifier.height(8.dp))
                             Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
-                                )
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(containerColor = BgGray)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -316,11 +292,11 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column {
-                                        Text("追溯码", style = MaterialTheme.typography.labelMedium)
-                                        Text(code, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                        Text("追溯码", fontSize = 12.sp, color = LabelGray)
+                                        Text(code, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                     }
                                     IconButton(onClick = { viewModel.clearTraceCode() }) {
-                                        Icon(Icons.Default.Close, contentDescription = "关闭")
+                                        Text("✕", fontSize = 18.sp, color = LabelGray)
                                     }
                                 }
                             }
@@ -331,18 +307,202 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
 
             // 错误提示
             state.errorMessage?.let { error ->
-                Snackbar(
-                    action = {
+                Card(
+                    shape = RoundedCornerShape(10.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEAEA))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(error, color = Color(0xFFD32F2F), fontSize = 13.sp)
                         TextButton(onClick = { viewModel.clearError() }) {
                             Text("关闭")
                         }
                     }
-                ) {
-                    Text(error)
                 }
             }
 
-            Spacer(Modifier.height(80.dp)) // 底部留白给导航栏
+            Spacer(Modifier.height(80.dp))
+        }
+    }
+}
+
+@Composable
+private fun DimensionInput(
+    label: String,
+    value: String,
+    unit: String,
+    onValueChange: (String) -> Unit,
+    keyboardType: KeyboardType = KeyboardType.Decimal,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, color = LabelGray, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .background(Color.White, RoundedCornerShape(12.dp))
+                .padding(horizontal = 14.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = ValueDark
+                    ),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    decorationBox = { innerTextField ->
+                        Box {
+                            if (value.isEmpty()) {
+                                Text("0", fontSize = 18.sp, fontWeight = FontWeight.Medium, color = ValueDark)
+                            }
+                            innerTextField()
+                        }
+                    }
+                )
+                Text(unit, fontSize = 12.sp, color = UnitGray)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MaterialDropdown(
+    label: String,
+    options: List<Pair<MaterialKey, String>>,
+    selectedKey: MaterialKey,
+    onSelect: (MaterialKey) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = options.find { it.first == selectedKey }?.second ?: "请选择"
+
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, color = SelectLabel, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it }
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .background(Color.White, RoundedCornerShape(8.dp))
+                    .menuAnchor()
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        selectedLabel,
+                        fontSize = 14.sp,
+                        color = if (selectedKey == options.firstOrNull()?.first) SelectPlaceholder else SelectLabel
+                    )
+                    Icon(
+                        Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color(0xFF999999)
+                    )
+                }
+            }
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                options.forEach { (key, text) ->
+                    DropdownMenuItem(
+                        text = { Text(text) },
+                        onClick = {
+                            onSelect(key)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LayoutDropdown(
+    label: String,
+    options: List<Pair<LayoutKey, String>>,
+    selectedKey: LayoutKey,
+    onSelect: (LayoutKey) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = options.find { it.first == selectedKey }?.second ?: "请选择"
+
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, color = SelectLabel, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it }
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .background(Color.White, RoundedCornerShape(8.dp))
+                    .menuAnchor()
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        selectedLabel,
+                        fontSize = 14.sp,
+                        color = SelectLabel
+                    )
+                    Icon(
+                        Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color(0xFF999999)
+                    )
+                }
+            }
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                options.forEach { (key, text) ->
+                    DropdownMenuItem(
+                        text = { Text(text) },
+                        onClick = {
+                            onSelect(key)
+                            expanded = false
+                        }
+                    )
+                }
+            }
         }
     }
 }
