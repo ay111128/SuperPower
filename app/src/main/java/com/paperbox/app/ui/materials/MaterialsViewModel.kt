@@ -45,10 +45,13 @@ data class MaterialsUiState(
     val selectedCategory: String = "all",
     val selectedTags: Set<String> = emptySet(),
     val searchQuery: String = "",
+    // 内联搜索
+    val isSearchActive: Boolean = false,
+    val searchFieldText: String = "",
+    val allMaterials: List<MaterialItem> = emptyList(),
     // 布局
     val layoutMode: String = "grid", // "grid" or "list"
     // 弹窗状态
-    val showSearchDialog: Boolean = false,
     val showUploadSheet: Boolean = false,
     val showMoreSheet: Boolean = false,
     val showTagDialog: Boolean = false,
@@ -241,14 +244,60 @@ class MaterialsViewModel @Inject constructor(
         loadMaterials()
     }
 
-    // ── 弹窗控制 ──
+    // ── 内联搜索 ──
 
-    fun showSearchDialog() {
-        _uiState.value = _uiState.value.copy(showSearchDialog = true)
+    private var searchDebounceJob: kotlinx.coroutines.Job? = null
+
+    fun toggleSearch() {
+        val current = _uiState.value
+        if (current.isSearchActive) {
+            // 关闭搜索：提交搜索词并重新加载
+            dismissSearch()
+        } else {
+            // 打开搜索：备份当前数据以便实时过滤
+            _uiState.value = current.copy(
+                isSearchActive = true,
+                searchFieldText = current.searchQuery,
+                allMaterials = current.materials
+            )
+        }
     }
 
-    fun dismissSearchDialog() {
-        _uiState.value = _uiState.value.copy(showSearchDialog = false)
+    fun updateSearchField(text: String) {
+        _uiState.value = _uiState.value.copy(searchFieldText = text)
+        // 实时客户端过滤（从备份数据过滤，避免级联过滤）
+        val baseMaterials = _uiState.value.allMaterials
+        if (text.isBlank()) {
+            _uiState.value = _uiState.value.copy(materials = baseMaterials)
+        } else {
+            val query = text.lowercase()
+            _uiState.value = _uiState.value.copy(
+                materials = baseMaterials.filter { m ->
+                    m.name.lowercase().contains(query) ||
+                    m.tags.any { it.lowercase().contains(query) }
+                }
+            )
+        }
+        // 防抖：500ms 后向服务器请求更多结果
+        searchDebounceJob?.cancel()
+        searchDebounceJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(500)
+            _uiState.value = _uiState.value.copy(searchQuery = text)
+            loadMaterials()
+        }
+    }
+
+    fun dismissSearch() {
+        val fieldText = _uiState.value.searchFieldText
+        val previousQuery = _uiState.value.searchQuery
+        searchDebounceJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            isSearchActive = false,
+            searchQuery = fieldText
+        )
+        if (fieldText != previousQuery) {
+            loadMaterials()
+        }
     }
 
     fun showUploadSheet() {

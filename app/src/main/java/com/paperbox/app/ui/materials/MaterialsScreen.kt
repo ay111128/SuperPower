@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FileDownload
@@ -182,8 +183,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         .statusBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .height(62.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = "素材",
@@ -191,16 +191,62 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold
                     )
-                    IconButton(
-                        onClick = { viewModel.showSearchDialog() },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = "搜索",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                    if (state.isSearchActive) {
+                        Spacer(Modifier.width(12.dp))
+                        OutlinedTextField(
+                            value = state.searchFieldText,
+                            onValueChange = { viewModel.updateSearchField(it) },
+                            placeholder = {
+                                Text("搜索素材…", color = Color(0xFF999999), fontSize = 14.sp)
+                            },
+                            singleLine = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(42.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color.White.copy(alpha = 0.8f),
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.4f),
+                                cursorColor = Green,
+                                focusedTextColor = Color(0xFF333333),
+                                unfocusedTextColor = Color(0xFF333333),
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White
+                            ),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = Color(0xFF999999),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         )
+                        IconButton(
+                            onClick = { viewModel.toggleSearch() },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "关闭搜索",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                        IconButton(
+                            onClick = { viewModel.toggleSearch() },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "搜索",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -265,37 +311,21 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         onSelect = { },
                         modifier = Modifier.weight(1f)
                     )
-                    // 视图切换
-                    Row(
+                    // 视图切换（单按钮切换）
+                    Box(
                         modifier = Modifier
                             .height(42.dp)
                             .background(ToggleBg, RoundedCornerShape(8.dp))
-                            .padding(horizontal = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .clickable { viewModel.toggleLayout() }
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        IconButton(
-                            onClick = { if (state.layoutMode != "grid") viewModel.toggleLayout() },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.GridView,
-                                contentDescription = "网格",
-                                modifier = Modifier.size(16.dp),
-                                tint = if (state.layoutMode == "grid") Green else Color(0xFFBBBBBB)
-                            )
-                        }
-                        IconButton(
-                            onClick = { if (state.layoutMode != "list") viewModel.toggleLayout() },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.ViewList,
-                                contentDescription = "列表",
-                                modifier = Modifier.size(16.dp),
-                                tint = if (state.layoutMode == "list") Green else Color(0xFFBBBBBB)
-                            )
-                        }
+                        Icon(
+                            if (state.layoutMode == "grid") Icons.Default.GridView else Icons.Default.ViewList,
+                            contentDescription = if (state.layoutMode == "grid") "切换为列表" else "切换为网格",
+                            modifier = Modifier.size(18.dp),
+                            tint = Green
+                        )
                     }
                 }
             }
@@ -366,38 +396,6 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                 }
             }
         }
-    }
-
-    // ── 搜索弹窗 ──
-    if (state.showSearchDialog) {
-        var searchInput by remember { mutableStateOf(state.searchQuery) }
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissSearchDialog() },
-            title = { Text("搜索素材", fontWeight = FontWeight.Bold) },
-            text = {
-                OutlinedTextField(
-                    value = searchInput,
-                    onValueChange = { searchInput = it },
-                    placeholder = { Text("输入素材名称或标签…") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.updateSearch(searchInput)
-                    viewModel.dismissSearchDialog()
-                }) {
-                    Text("搜索")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.dismissSearchDialog() }) {
-                    Text("取消")
-                }
-            }
-        )
     }
 
     // ── 上传底部弹窗 ──
@@ -713,7 +711,7 @@ private fun MaterialGridCard(
                         tint = Color.White.copy(alpha = 0.9f)
                     )
                 }
-                // 类型 badge
+                // 类型 badge（左下角）
                 Surface(
                     shape = RoundedCornerShape(4.dp),
                     color = Color.Black.copy(alpha = 0.25f),
@@ -721,6 +719,20 @@ private fun MaterialGridCard(
                 ) {
                     Text(
                         text = typeStyle.name,
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+                // 文件大小 badge（右下角）
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = Color.Black.copy(alpha = 0.25f),
+                    modifier = Modifier.padding(8.dp).align(Alignment.BottomEnd)
+                ) {
+                    Text(
+                        text = formatSize(material.size),
                         color = Color.White,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
@@ -754,12 +766,6 @@ private fun MaterialGridCard(
                         }
                     }
                 }
-                // 文件大小
-                Text(
-                    text = formatSize(material.size),
-                    fontSize = 11.sp,
-                    color = SizeText
-                )
             }
         }
     }
@@ -816,6 +822,20 @@ private fun MaterialListCard(
                 } else {
                     Icon(typeStyle.icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = Color.White.copy(alpha = 0.9f))
                 }
+                // 文件大小 badge（右下角）
+                Surface(
+                    shape = RoundedCornerShape(3.dp),
+                    color = Color.Black.copy(alpha = 0.45f),
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(2.dp)
+                ) {
+                    Text(
+                        text = formatSize(material.size),
+                        color = Color.White,
+                        fontSize = 7.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                    )
+                }
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -833,8 +853,6 @@ private fun MaterialListCard(
                         }
                     }
                 }
-                Spacer(Modifier.height(2.dp))
-                Text(formatSize(material.size), fontSize = 11.sp, color = SizeText)
             }
             Surface(
                 shape = RoundedCornerShape(7.dp),
