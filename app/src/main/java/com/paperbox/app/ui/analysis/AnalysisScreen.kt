@@ -138,11 +138,8 @@ fun AnalysisScreen() {
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             ProfitRow(label = "总成本", value = "¥12,580.00", valueColor = ValueDark)
-                            HorizontalDivider(color = Color(0xFFF0F0F0))
                             ProfitRow(label = "总收入", value = "¥18,920.00", valueColor = ValueDark)
-                            HorizontalDivider(color = Color(0xFFF0F0F0))
                             ProfitRow(label = "净利润", value = "¥6,340.00", valueColor = Green)
-                            HorizontalDivider(color = Color(0xFFF0F0F0))
                             ProfitRow(label = "利润率", value = "33.5%", valueColor = Green)
                         }
                     }

@@ -21,11 +21,17 @@ fun ZoomableImage(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     onTap: (() -> Unit)? = null,
-    onLongPress: (() -> Unit)? = null
+    onLongPress: (() -> Unit)? = null,
+    onZoomChanged: ((Boolean) -> Unit)? = null
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
+
+    // 通知外部缩放状态变化
+    androidx.compose.runtime.LaunchedEffect(scale) {
+        onZoomChanged?.invoke(scale > 1.1f)
+    }
 
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         scale = (scale * zoomChange).coerceIn(0.5f, 5f)
@@ -44,8 +50,14 @@ fun ZoomableImage(
                 translationX = offsetX,
                 translationY = offsetY
             )
-            // 先检测双指缩放，再检测单击手势
-            .transformable(state = transformState)
+            // 仅在缩放状态下拦截手势，base scale 时让 HorizontalPager 处理滑动
+            .then(
+                if (scale > 1.1f) {
+                    Modifier.transformable(state = transformState)
+                } else {
+                    Modifier
+                }
+            )
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { onTap?.invoke() },

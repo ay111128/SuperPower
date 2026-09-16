@@ -1,7 +1,6 @@
 package com.paperbox.app.ui.media
 
 import android.app.Activity
-import android.content.Context
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
@@ -11,6 +10,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,6 +29,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +47,9 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.paperbox.app.BuildConfig
+import com.paperbox.app.data.api.models.MaterialItem
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 
@@ -61,15 +66,51 @@ fun MediaViewerScreen(
     materialId: String,
     materialType: String,
     onBack: () -> Unit,
+    materialsJson: String? = null,
+    currentIndex: Int = 0,
     viewModel: MediaViewerViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val fileUrl = "${BuildConfig.API_BASE_URL}/materials-api/materials/$materialId/file"
+
+    // 解析素材列表
+    val materials = remember(materialsJson) {
+        if (!materialsJson.isNullOrBlank()) {
+            try {
+                val type = Types.newParameterizedType(List::class.java, MaterialItem::class.java)
+                Moshi.Builder().build().adapter<List<MaterialItem>>(type).fromJson(materialsJson) ?: emptyList()
+            } catch (_: Exception) { emptyList() }
+        } else emptyList()
+    }
+    val hasMultiple = materials.size > 1
+
+    // Pager 状态
+    val initialPage = currentIndex.coerceIn(0, (materials.size - 1).coerceAtLeast(0))
+    val pagerState = rememberPagerState(initialPage = { initialPage }, pageCount = { materials.size })
+
+    // 当前显示的素材
+    var currentMaterial by remember {
+        mutableStateOf(
+            materials.getOrElse(initialPage) {
+                MaterialItem(id = materialId, name = "", type = materialType)
+            }
+        )
+    }
+
+    // 滑动时更新当前素材
+    LaunchedEffect(pagerState.currentPage) {
+        if (materials.isNotEmpty()) {
+            currentMaterial = materials[pagerState.currentPage]
+        }
+    }
+
+    val fileUrl = "${BuildConfig.API_BASE_URL}/materials-api/materials/${currentMaterial.id}/file"
 
     var showMenu by remember { mutableStateOf(false) }
     var viewState by remember { mutableIntStateOf(VIEW_FULLSCREEN) }
+    // 跟踪图片缩放状态，缩放时禁止 Pager 滑动
+    var isImageZoomed by remember { mutableStateOf(false) }
 
     BackHandler {
         when (viewState) {
@@ -86,7 +127,6 @@ fun MediaViewerScreen(
             val window = activity.window
             when (viewState) {
                 VIEW_NORMAL -> {
-                    // 普通模式：显示系统栏
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         window.insetsController?.show(
                             android.view.WindowInsets.Type.statusBars() or
@@ -100,7 +140,6 @@ fun MediaViewerScreen(
                     window.navigationBarColor = android.graphics.Color.BLACK
                 }
                 VIEW_FULLSCREEN, VIEW_PURE -> {
-                    // 全屏/纯净：隐藏系统栏（包括导航栏指示条）
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         val controller = window.insetsController
                         controller?.hide(
@@ -110,7 +149,6 @@ fun MediaViewerScreen(
                         )
                         controller?.systemBarsBehavior =
                             android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                        // 设置导航栏颜色为透明，隐藏导航指示条
                         window.navigationBarColor = android.graphics.Color.TRANSPARENT
                     } else {
                         @Suppress("DEPRECATION")
@@ -156,10 +194,12 @@ fun MediaViewerScreen(
                 TextButton(onClick = {
                     showMenu = false
                     scope.launch {
-                        val ext = if (materialType.contains("png")) ".png" else if (materialType.contains("video")) ".mp4" else ".jpg"
+                        val ext = if (currentMaterial.type.contains("png")) ".png"
+                                  else if (currentMaterial.type.startsWith("video")) ".mp4"
+                                  else ".jpg"
                         viewModel.downloadFile(
-                            materialId = materialId,
-                            filename = "${materialId}$ext",
+                            materialId = currentMaterial.id,
+                            filename = "${currentMaterial.id}$ext",
                             saveAsOriginal = true
                         ) { success, msg ->
                             scope.launch { snackbarHostState.showSnackbar(msg) }
@@ -173,7 +213,7 @@ fun MediaViewerScreen(
                 TextButton(onClick = {
                     showMenu = false
                     scope.launch {
-                        viewModel.deleteMaterial(materialId) { success, msg ->
+                        viewModel.deleteMaterial(currentMaterial.id) { success, msg ->
                             scope.launch {
                                 snackbarHostState.showSnackbar(msg)
                                 if (success) onBack()
@@ -187,15 +227,54 @@ fun MediaViewerScreen(
         )
     }
 
+    // ── 核心内容：根据模式渲染 ──
+    @Composable
+    fun PagerContent(onTap: () -> Unit, onLongPress: () -> Unit) {
+        if (hasMultiple) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                userScrollEnabled = !isImageZoomed
+            ) { page ->
+                val material = materials[page]
+                val url = "${BuildConfig.API_BASE_URL}/materials-api/materials/${material.id}/file"
+                PagerPage(
+                    materialType = material.type,
+                    fileUrl = url,
+                    okHttpClient = viewModel.okHttpClient,
+                    onTap = onTap,
+                    onLongPress = onLongPress,
+                    onZoomChanged = { zoomed -> isImageZoomed = zoomed }
+                )
+            }
+        } else {
+            PagerPage(
+                materialType = currentMaterial.type,
+                fileUrl = fileUrl,
+                okHttpClient = viewModel.okHttpClient,
+                onTap = onTap,
+                onLongPress = onLongPress,
+                onZoomChanged = { zoomed -> isImageZoomed = zoomed }
+            )
+        }
+    }
+
     when (viewState) {
         VIEW_NORMAL -> {
-            // 普通模式：Scaffold + 返回栏 + 状态栏
             Scaffold(
                 containerColor = Color.Black,
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                     TopAppBar(
-                        title = {},
+                        title = {
+                            if (hasMultiple) {
+                                Text(
+                                    "${pagerState.currentPage + 1} / ${materials.size}",
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        },
                         navigationIcon = {
                             IconButton(onClick = onBack) {
                                 Icon(
@@ -217,8 +296,7 @@ fun MediaViewerScreen(
                         .fillMaxSize()
                         .background(Color.Black)
                 ) {
-                    MediaContent(
-                        materialType, fileUrl, viewModel, showMenu,
+                    PagerContent(
                         onTap = { viewState = VIEW_FULLSCREEN },
                         onLongPress = { showMenu = true }
                     )
@@ -226,19 +304,16 @@ fun MediaViewerScreen(
             }
         }
         VIEW_FULLSCREEN -> {
-            // 全屏模式：无状态栏，有返回键（半透明）
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black)
             ) {
-                // 内容铺满全屏
-                MediaContent(
-                    materialType, fileUrl, viewModel, showMenu,
+                PagerContent(
                     onTap = { viewState = VIEW_PURE },
                     onLongPress = { showMenu = true }
                 )
-                // 返回键浮层（半透明背景）
+                // 返回键浮层
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -254,18 +329,27 @@ fun MediaViewerScreen(
                             tint = Color.White.copy(alpha = 0.8f)
                         )
                     }
+                    // 页码指示器
+                    if (hasMultiple) {
+                        Text(
+                            "${pagerState.currentPage + 1} / ${materials.size}",
+                            color = Color.White.copy(alpha = 0.6f),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 16.dp)
+                        )
+                    }
                 }
             }
         }
         VIEW_PURE -> {
-            // 纯净模式：全隐藏，点击恢复到全屏模式
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black)
             ) {
-                MediaContent(
-                    materialType, fileUrl, viewModel, showMenu,
+                PagerContent(
                     onTap = { viewState = VIEW_FULLSCREEN },
                     onLongPress = { showMenu = true }
                 )
@@ -274,14 +358,17 @@ fun MediaViewerScreen(
     }
 }
 
+/**
+ * 单页内容：图片或视频
+ */
 @Composable
-private fun MediaContent(
+private fun PagerPage(
     materialType: String,
     fileUrl: String,
-    viewModel: MediaViewerViewModel,
-    showMenu: Boolean,
+    okHttpClient: okhttp3.OkHttpClient,
     onTap: () -> Unit,
-    onLongPress: () -> Unit
+    onLongPress: () -> Unit,
+    onZoomChanged: (Boolean) -> Unit
 ) {
     when {
         materialType.startsWith("image") -> {
@@ -291,13 +378,14 @@ private fun MediaContent(
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 onTap = onTap,
-                onLongPress = onLongPress
+                onLongPress = onLongPress,
+                onZoomChanged = onZoomChanged
             )
         }
         materialType.startsWith("video") -> {
             VideoPlayer(
                 url = fileUrl,
-                okHttpClient = viewModel.okHttpClient,
+                okHttpClient = okHttpClient,
                 modifier = Modifier.fillMaxSize(),
                 onLongPress = onLongPress,
                 onTap = onTap
@@ -340,7 +428,6 @@ private fun VideoPlayer(
                 setBackgroundColor(android.graphics.Color.BLACK)
             }
 
-            // PlayerView - 使用默认控制器但精简化
             val playerView = PlayerView(ctx).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -348,12 +435,10 @@ private fun VideoPlayer(
                 )
                 useController = true
                 setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
-                // 精简控制器：只保留播放/暂停
                 controllerShowTimeoutMs = 0
                 controllerAutoShow = false
             }
 
-            // 创建 ExoPlayer
             val dataSourceFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
             val exoPlayer = ExoPlayer.Builder(ctx)
                 .setMediaSourceFactory(
@@ -368,13 +453,10 @@ private fun VideoPlayer(
 
             playerView.player = exoPlayer
 
-            // 长按检测
             container.setOnLongClickListener {
                 onLongPress?.invoke()
                 true
             }
-
-            // 单击检测
             container.setOnClickListener {
                 onTap?.invoke()
             }

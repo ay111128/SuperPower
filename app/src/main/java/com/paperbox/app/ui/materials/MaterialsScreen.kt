@@ -201,8 +201,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                             },
                             singleLine = true,
                             modifier = Modifier
-                                .weight(1f)
-                                .height(42.dp),
+                                .weight(1f),
                             shape = RoundedCornerShape(10.dp),
                             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color.White.copy(alpha = 0.8f),
@@ -370,6 +369,14 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                                 material = material,
                                 videoThumbnail = state.videoThumbnails[material.id],
                                 onClick = {
+                                    val idx = state.materials.indexOf(material)
+                                    val json = com.squareup.moshi.Moshi.Builder().build()
+                                        .adapter(List::class.java)
+                                        .toJson(state.materials)
+                                    navController.currentBackStackEntry?.savedStateHandle?.apply {
+                                        set("materials_json", json)
+                                        set("current_index", idx)
+                                    }
                                     val encodedType = URLEncoder.encode(material.type, "UTF-8")
                                     navController.navigate("media_viewer/${material.id}/$encodedType")
                                 },
@@ -386,6 +393,14 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                                 material = material,
                                 videoThumbnail = state.videoThumbnails[material.id],
                                 onClick = {
+                                    val idx = state.materials.indexOf(material)
+                                    val json = com.squareup.moshi.Moshi.Builder().build()
+                                        .adapter(List::class.java)
+                                        .toJson(state.materials)
+                                    navController.currentBackStackEntry?.savedStateHandle?.apply {
+                                        set("materials_json", json)
+                                        set("current_index", idx)
+                                    }
                                     val encodedType = URLEncoder.encode(material.type, "UTF-8")
                                     navController.navigate("media_viewer/${material.id}/$encodedType")
                                 },
@@ -714,29 +729,29 @@ private fun MaterialGridCard(
                 // 类型 badge（左下角）
                 Surface(
                     shape = RoundedCornerShape(4.dp),
-                    color = Color.Black.copy(alpha = 0.25f),
-                    modifier = Modifier.padding(8.dp).align(Alignment.BottomStart)
+                    color = Color.Black.copy(alpha = 0.35f),
+                    modifier = Modifier.padding(4.dp).align(Alignment.BottomStart)
                 ) {
                     Text(
                         text = typeStyle.name,
                         color = Color.White,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                     )
                 }
                 // 文件大小 badge（右下角）
                 Surface(
                     shape = RoundedCornerShape(4.dp),
-                    color = Color.Black.copy(alpha = 0.25f),
-                    modifier = Modifier.padding(8.dp).align(Alignment.BottomEnd)
+                    color = Color.Black.copy(alpha = 0.35f),
+                    modifier = Modifier.padding(4.dp).align(Alignment.BottomEnd)
                 ) {
                     Text(
                         text = formatSize(material.size),
                         color = Color.White,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                     )
                 }
             }
@@ -826,14 +841,14 @@ private fun MaterialListCard(
                 Surface(
                     shape = RoundedCornerShape(3.dp),
                     color = Color.Black.copy(alpha = 0.45f),
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(2.dp)
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(1.dp)
                 ) {
                     Text(
                         text = formatSize(material.size),
                         color = Color.White,
                         fontSize = 7.sp,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                        modifier = Modifier.padding(horizontal = 2.dp, vertical = 1.dp)
                     )
                 }
             }

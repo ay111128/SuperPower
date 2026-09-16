@@ -8,7 +8,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -68,7 +68,7 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
                         onClick = { viewModel.reset() },
                         modifier = Modifier.size(40.dp)
                     ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "重置", tint = Color.White, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Search, contentDescription = "重置", tint = Color.White, modifier = Modifier.size(20.dp))
                     }
                 }
             }
