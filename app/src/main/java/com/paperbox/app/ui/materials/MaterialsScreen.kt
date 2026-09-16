@@ -221,6 +221,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                                 unfocusedContainerColor = Color.White
                             ),
                             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 1.dp),
                             leadingIcon = {
                                 Icon(
                                     Icons.Default.Search,
@@ -294,7 +295,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     // 分类下拉
                     FilterDropdown(
                         label = "分类",
-                        options = listOf("全部") + state.colors.map { it.name },
+                        options = listOf("全部分类") + state.colors.map { it.name },
                         selectedIndex = if (state.selectedColor.isBlank()) 0
                             else state.colors.indexOfFirst { it.name == state.selectedColor } + 1,
                         onSelect = { idx ->
@@ -305,7 +306,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     // 标签下拉
                     FilterDropdown(
                         label = "标签",
-                        options = listOf("全部") + state.tags,
+                        options = listOf("全部标签") + state.tags,
                         selectedIndex = 0, // simplified: always "全部"
                         onSelect = { },
                         modifier = Modifier.weight(1f)
@@ -313,7 +314,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     // 类型下拉
                     FilterDropdown(
                         label = "类型",
-                        options = listOf("全部", "图片", "视频", "文档"),
+                        options = listOf("全部类型", "图片", "视频", "文档"),
                         selectedIndex = 0,
                         onSelect = { },
                         modifier = Modifier.weight(1f)
@@ -650,8 +651,7 @@ private fun FilterDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, color = LabelGray, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    Column(modifier = modifier) {
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = it }
@@ -671,9 +671,9 @@ private fun FilterDropdown(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        options.getOrElse(selectedIndex) { "全部" },
+                        options.getOrElse(selectedIndex) { label },
                         fontSize = 11.sp,
-                        color = Color(0xFF333333)
+                        color = if (selectedIndex == 0) Color(0xFF999999) else Color(0xFF333333)
                     )
                     Icon(
                         Icons.Default.ArrowDropDown,
@@ -781,6 +781,7 @@ private fun MaterialGridCard(
                         text = typeStyle.name,
                         color = Color.White,
                         fontSize = 9.sp,
+                        lineHeight = 9.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -794,6 +795,7 @@ private fun MaterialGridCard(
                         text = formatSize(material.size),
                         color = Color.White,
                         fontSize = 9.sp,
+                        lineHeight = 9.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -817,8 +819,7 @@ private fun MaterialGridCard(
                                 Text(
                                     text = tag,
                                     fontSize = 10.sp,
-                                    color = TagText,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    color = TagText
                                 )
                             }
                         }
@@ -903,8 +904,7 @@ private fun MaterialListCard(
                                 Text(
                                     text = tag,
                                     fontSize = 10.sp,
-                                    color = TagText,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    color = TagText
                                 )
                             }
                         }
