@@ -44,29 +44,34 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            TopAppBar(
-                title = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF007A12))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .height(62.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Text(
                         "报价",
-                        modifier = Modifier.statusBarsPadding(),
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold
                     )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF007A12)
-                ),
-                windowInsets = WindowInsets(0, 0, 0, 0),
-                actions = {
                     IconButton(
                         onClick = { viewModel.reset() },
-                        modifier = Modifier.statusBarsPadding()
+                        modifier = Modifier.size(40.dp)
                     ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "重置", tint = Color.White)
+                        Icon(Icons.Default.Refresh, contentDescription = "重置", tint = Color.White, modifier = Modifier.size(20.dp))
                     }
                 }
-            )
+            }
         }
     ) { padding ->
         Column(

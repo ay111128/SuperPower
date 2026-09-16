@@ -40,21 +40,28 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            TopAppBar(
-                title = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF007A12))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .height(62.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Text(
                         "个人中心",
-                        modifier = Modifier.statusBarsPadding(),
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold
                     )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF007A12)
-                ),
-                windowInsets = WindowInsets(0, 0, 0, 0)
-            )
+                }
+            }
         }
     ) { padding ->
         Column(
