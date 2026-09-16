@@ -87,7 +87,7 @@ fun MediaViewerScreen(
 
     // Pager 状态
     val initialPage = currentIndex.coerceIn(0, (materials.size - 1).coerceAtLeast(0))
-    val pagerState = rememberPagerState(initialPage = initialPage, pageCount = materials.size)
+    val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { materials.size })
 
     // 当前显示的素材
     var currentMaterial by remember {
