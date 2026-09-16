@@ -39,6 +39,31 @@ fun ZoomableImage(
         offsetY += panChange.y
     }
 
+    // 仅在缩放状态下拦截手势，base scale 时让 HorizontalPager 处理滑动
+    val gestureModifier = if (scale > 1.1f) {
+        Modifier
+            .transformable(state = transformState)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onTap?.invoke() },
+                    onDoubleTap = { tapOffset ->
+                        if (scale > 1.5f) {
+                            scale = 1f
+                            offsetX = 0f
+                            offsetY = 0f
+                        } else {
+                            scale = 2.5f
+                            offsetX = (size.width / 2f - tapOffset.x) * 1.5f
+                            offsetY = (size.height / 2f - tapOffset.y) * 1.5f
+                        }
+                    },
+                    onLongPress = { onLongPress?.invoke() }
+                )
+            }
+    } else {
+        Modifier
+    }
+
     AsyncImage(
         model = model,
         contentDescription = contentDescription,
@@ -50,32 +75,7 @@ fun ZoomableImage(
                 translationX = offsetX,
                 translationY = offsetY
             )
-            // 仅在缩放状态下拦截手势，base scale 时让 HorizontalPager 处理滑动
-            .then(
-                if (scale > 1.1f) {
-                    Modifier
-                        .transformable(state = transformState)
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onTap = { onTap?.invoke() },
-                                onDoubleTap = { tapOffset ->
-                                    if (scale > 1.5f) {
-                                        scale = 1f
-                                        offsetX = 0f
-                                        offsetY = 0f
-                                    } else {
-                                        scale = 2.5f
-                                        offsetX = (size.width / 2f - tapOffset.x) * 1.5f
-                                        offsetY = (size.height / 2f - tapOffset.y) * 1.5f
-                                    }
-                                },
-                                onLongPress = { onLongPress?.invoke() }
-                            )
-                        }
-                } else {
-                    Modifier
-                }
-            )
+            .then(gestureModifier),
         alignment = Alignment.Center
     )
 }
