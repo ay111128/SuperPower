@@ -65,6 +65,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.BasicTextField
+import androidx.compose.foundation.border
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -201,33 +203,29 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     )
                     if (state.isSearchActive) {
                         Spacer(Modifier.width(12.dp))
-                        OutlinedTextField(
+                        BasicTextField(
                             value = state.searchFieldText,
                             onValueChange = { viewModel.updateSearchField(it) },
-                            placeholder = {
-                                Text("搜索素材…", color = Color(0xFF999999), fontSize = 14.sp)
-                            },
                             singleLine = true,
                             modifier = Modifier
-                                .weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color.White.copy(alpha = 0.8f),
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.4f),
-                                cursorColor = Green,
-                                focusedTextColor = Color(0xFF333333),
-                                unfocusedTextColor = Color(0xFF333333),
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White
+                                .weight(1f)
+                                .height(24.dp)
+                                .background(Color.White, RoundedCornerShape(10.dp))
+                                .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(10.dp)),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontSize = 14.sp,
+                                color = Color(0xFF333333)
                             ),
-                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Search,
-                                    contentDescription = null,
-                                    tint = Color(0xFF999999),
-                                    modifier = Modifier.size(18.dp)
-                                )
+                            decorationBox = { innerTextField ->
+                                Box(
+                                    contentAlignment = Alignment.CenterStart,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 1.dp)
+                                ) {
+                                    if (state.searchFieldText.isEmpty()) {
+                                        Text("搜索素材…", color = Color(0xFF999999), fontSize = 14.sp)
+                                    }
+                                    innerTextField()
+                                }
                             }
                         )
                         IconButton(

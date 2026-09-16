@@ -67,15 +67,7 @@ fun ZoomableImage(
     AsyncImage(
         model = model,
         contentDescription = contentDescription,
-        modifier = modifier
-            .fillMaxSize()
-            .graphicsLayer(
-                scaleX = scale,
-                scaleY = scale,
-                translationX = offsetX,
-                translationY = offsetY
-            )
-            .then(gestureModifier),
+        modifier = modifier.fillMaxSize(),
         alignment = Alignment.Center
     )
 }
