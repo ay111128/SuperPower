@@ -209,7 +209,8 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                             },
                             singleLine = true,
                             modifier = Modifier
-                                .weight(1f),
+                                .weight(1f)
+                                .height(40.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color.White.copy(alpha = 0.8f),
@@ -221,7 +222,6 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                                 unfocusedContainerColor = Color.White
                             ),
                             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 1.dp),
                             leadingIcon = {
                                 Icon(
                                     Icons.Default.Search,
