@@ -21,8 +21,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
@@ -72,6 +76,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -94,6 +100,7 @@ import com.paperbox.app.BuildConfig
 import com.paperbox.app.data.api.models.MaterialItem
 import androidx.navigation.NavController
 import java.net.URLEncoder
+import kotlinx.coroutines.launch
 
 // ── 设计稿颜色 ──
 private val BgGray = Color(0xFFF5F5F5)
@@ -357,8 +364,33 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     }
                 }
             } else {
+                // 滚动状态记忆
+                val gridState = rememberLazyGridState(
+                    initialFirstVisibleItemIndex = state.scrollIndex,
+                    initialFirstVisibleItemScrollOffset = state.scrollOffset
+                )
+                val listState = rememberLazyListState(
+                    initialFirstVisibleItemIndex = state.scrollIndex,
+                    initialFirstVisibleItemScrollOffset = state.scrollOffset
+                )
+
+                // 保存滚动位置
+                val currentListState = if (state.layoutMode == "grid") gridState else listState
+                val coroutineScope = rememberCoroutineScope()
+                DisposableEffect(currentListState) {
+                    val job = coroutineScope.launch {
+                        snapshotFlow {
+                            currentListState.firstVisibleItemIndex to currentListState.firstVisibleItemScrollOffset
+                        }.collect { (index, offset) ->
+                            viewModel.saveScrollPosition(index, offset)
+                        }
+                    }
+                    onDispose { job.cancel() }
+                }
+
                 when (state.layoutMode) {
                     "grid" -> LazyVerticalGrid(
+                        state = gridState,
                         columns = GridCells.Fixed(2),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -385,6 +417,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         }
                     }
                     "list" -> LazyColumn(
+                        state = listState,
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -736,8 +769,7 @@ private fun MaterialGridCard(
                         text = typeStyle.name,
                         color = Color.White,
                         fontSize = 9.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        fontWeight = FontWeight.Medium
                     )
                 }
                 // 文件大小 badge（右下角）
@@ -750,8 +782,7 @@ private fun MaterialGridCard(
                         text = formatSize(material.size),
                         color = Color.White,
                         fontSize = 9.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
@@ -847,8 +878,7 @@ private fun MaterialListCard(
                         text = formatSize(material.size),
                         color = Color.White,
                         fontSize = 6.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 2.dp, vertical = 0.5.dp)
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }

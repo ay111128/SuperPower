@@ -49,6 +49,9 @@ data class MaterialsUiState(
     val isSearchActive: Boolean = false,
     val searchFieldText: String = "",
     val allMaterials: List<MaterialItem> = emptyList(),
+    // 滚动位置记忆
+    val scrollIndex: Int = 0,
+    val scrollOffset: Int = 0,
     // 布局
     val layoutMode: String = "grid", // "grid" or "list"
     // 弹窗状态
@@ -236,7 +239,11 @@ class MaterialsViewModel @Inject constructor(
 
     fun toggleLayout() {
         val newMode = if (_uiState.value.layoutMode == "grid") "list" else "grid"
-        _uiState.value = _uiState.value.copy(layoutMode = newMode)
+        _uiState.value = _uiState.value.copy(layoutMode = newMode, scrollIndex = 0, scrollOffset = 0)
+    }
+
+    fun saveScrollPosition(index: Int, offset: Int) {
+        _uiState.value = _uiState.value.copy(scrollIndex = index, scrollOffset = offset)
     }
 
     fun updateSearch(query: String) {
