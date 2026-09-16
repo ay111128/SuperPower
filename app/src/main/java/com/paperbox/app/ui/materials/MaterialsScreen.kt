@@ -728,30 +728,30 @@ private fun MaterialGridCard(
                 }
                 // 类型 badge（左下角）
                 Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = Color.Black.copy(alpha = 0.35f),
-                    modifier = Modifier.padding(4.dp).align(Alignment.BottomStart)
+                    shape = RoundedCornerShape(3.dp),
+                    color = Color.Black.copy(alpha = 0.4f),
+                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp).align(Alignment.BottomStart)
                 ) {
                     Text(
                         text = typeStyle.name,
                         color = Color.White,
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                     )
                 }
                 // 文件大小 badge（右下角）
                 Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = Color.Black.copy(alpha = 0.35f),
-                    modifier = Modifier.padding(4.dp).align(Alignment.BottomEnd)
+                    shape = RoundedCornerShape(3.dp),
+                    color = Color.Black.copy(alpha = 0.4f),
+                    modifier = Modifier.padding(end = 4.dp, bottom = 4.dp).align(Alignment.BottomEnd)
                 ) {
                     Text(
                         text = formatSize(material.size),
                         color = Color.White,
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                     )
                 }
             }
@@ -839,16 +839,16 @@ private fun MaterialListCard(
                 }
                 // 文件大小 badge（右下角）
                 Surface(
-                    shape = RoundedCornerShape(3.dp),
+                    shape = RoundedCornerShape(2.dp),
                     color = Color.Black.copy(alpha = 0.45f),
                     modifier = Modifier.align(Alignment.BottomEnd).padding(1.dp)
                 ) {
                     Text(
                         text = formatSize(material.size),
                         color = Color.White,
-                        fontSize = 7.sp,
+                        fontSize = 6.sp,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 2.dp, vertical = 1.dp)
+                        modifier = Modifier.padding(horizontal = 2.dp, vertical = 0.5.dp)
                     )
                 }
             }
