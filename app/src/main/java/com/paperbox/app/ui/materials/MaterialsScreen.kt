@@ -209,8 +209,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                             },
                             singleLine = true,
                             modifier = Modifier
-                                .weight(1f)
-                                .height(40.dp),
+                                .weight(1f),
                             shape = RoundedCornerShape(10.dp),
                             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color.White.copy(alpha = 0.8f),
@@ -819,6 +818,7 @@ private fun MaterialGridCard(
                                 Text(
                                     text = tag,
                                     fontSize = 10.sp,
+                                    lineHeight = 10.sp,
                                     color = TagText
                                 )
                             }
@@ -904,6 +904,7 @@ private fun MaterialListCard(
                                 Text(
                                     text = tag,
                                     fontSize = 10.sp,
+                                    lineHeight = 10.sp,
                                     color = TagText
                                 )
                             }
