@@ -1,6 +1,9 @@
 package com.paperbox.app.ui.materials
 
 import android.net.Uri
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -358,58 +361,34 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                                 modifier = Modifier.width(120.dp)
                             )
                         }
-                    }
-
-                    // 固定按钮：排序 + 视图切换
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(start = 8.dp, end = 12.dp)
-                    ) {
-                        // 排序切换
-                        Box(
-                            modifier = Modifier
-                                .width(72.dp)
-                                .height(42.dp)
-                                .background(FilterBg, RoundedCornerShape(10.dp))
-                                .border(1.dp, FilterBorder, RoundedCornerShape(10.dp))
-                                .clickable { viewModel.toggleSort() }
-                                .padding(horizontal = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.SwapVert,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = Green
-                                )
-                                Text(
-                                    if (state.sortOrder == "desc") "最新" else "最早",
-                                    fontSize = 13.sp,
-                                    color = Color(0xFF333333)
-                                )
-                            }
-                        }
-                        // 视图切换
-                        Box(
-                            modifier = Modifier
-                                .width(42.dp)
-                                .height(42.dp)
-                                .background(FilterBg, RoundedCornerShape(10.dp))
-                                .border(1.dp, FilterBorder, RoundedCornerShape(10.dp))
-                                .clickable { viewModel.toggleLayout() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                if (state.layoutMode == "grid") Icons.Default.GridView else Icons.Default.ViewList,
-                                contentDescription = if (state.layoutMode == "grid") "切换为列表" else "切换为网格",
-                                modifier = Modifier.size(18.dp),
-                                tint = Green
+                        // 排序下拉
+                        item {
+                            FilterDropdown(
+                                label = "排序",
+                                options = listOf("按时间新", "按时间旧"),
+                                selectedIndex = if (state.sortOrder == "desc") 0 else 1,
+                                onSelect = { idx ->
+                                    viewModel.setSort(if (idx == 0) "desc" else "asc")
+                                },
+                                modifier = Modifier.width(100.dp)
                             )
                         }
+                    }
+
+                    // 固定按钮：视图切换（无边框无背景）
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .size(42.dp)
+                            .clickable { viewModel.toggleLayout() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            if (state.layoutMode == "grid") Icons.Default.GridView else Icons.Default.ViewList,
+                            contentDescription = if (state.layoutMode == "grid") "切换为列表" else "切换为网格",
+                            modifier = Modifier.size(18.dp),
+                            tint = Green
+                        )
                     }
                 }
             }
@@ -501,8 +480,9 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                                     videoThumbnail = state.videoThumbnails[material.id],
                                     onClick = {
                                         val idx = state.materials.indexOf(material)
-                                        val json = com.squareup.moshi.Moshi.Builder().build()
-                                            .adapter(List::class.java)
+                                        val type = Types.newParameterizedType(List::class.java, MaterialItem::class.java)
+                                        val json = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+                                            .adapter<List<MaterialItem>>(type)
                                             .toJson(state.materials)
                                         navController.currentBackStackEntry?.savedStateHandle?.apply {
                                             set("materials_json", json)
@@ -539,8 +519,9 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                                     videoThumbnail = state.videoThumbnails[material.id],
                                     onClick = {
                                         val idx = state.materials.indexOf(material)
-                                        val json = com.squareup.moshi.Moshi.Builder().build()
-                                            .adapter(List::class.java)
+                                        val type = Types.newParameterizedType(List::class.java, MaterialItem::class.java)
+                                        val json = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+                                            .adapter<List<MaterialItem>>(type)
                                             .toJson(state.materials)
                                         navController.currentBackStackEntry?.savedStateHandle?.apply {
                                             set("materials_json", json)

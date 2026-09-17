@@ -1,7 +1,9 @@
 package com.paperbox.app.ui.quote
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,7 +38,9 @@ private val SelectPlaceholder = Color(0xFFBBBBBB)
 private val Green = Color(0xFF1B8A3E)
 private val GreenShadow = Color(0x331B8A3E)
 
-@OptIn(ExperimentalMaterial3Api::class)
+private fun Double.formatClean(): String = if (this % 1.0 == 0.0) this.toInt().toString() else this.toString()
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsState()
@@ -79,10 +83,96 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
                 .padding(padding)
                 .fillMaxSize()
                 .background(BgGray)
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp, 16.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            // ── 现货分类 tabs ──
+            val categories = listOf("kraft" to "牛皮色", "white" to "白色", "color" to "彩色")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                categories.forEach { (key, label) ->
+                    val count = state.spotCategoryCounts[key] ?: 0
+                    val selected = state.selectedSpotCategory == key
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp)
+                            .background(
+                                if (selected) Green else Color(0xFFF0F0F0),
+                                RoundedCornerShape(8.dp)
+                            )
+                            .clickable { viewModel.selectSpotCategory(key) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "$label（$count）",
+                            fontSize = 13.sp,
+                            color = if (selected) Color.White else Color(0xFF333333),
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
+
+            // ── 现货列表 ──
+            val filteredSpots = state.spotProducts.filter { it.category == state.selectedSpotCategory }
+            if (filteredSpots.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                ) {
+                    Text(
+                        "现货规格",
+                        color = SectionTitle,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        filteredSpots.forEach { spot ->
+                            val parts = spot.size.replace("cm", "").split("x")
+                            val l = parts.getOrNull(0)?.toDoubleOrNull() ?: 0.0
+                            val w = parts.getOrNull(1)?.toDoubleOrNull() ?: 0.0
+                            val h = parts.getOrNull(2)?.toDoubleOrNull() ?: 0.0
+                            val isCurrent = state.form.length == l && state.form.width == w && state.form.height == h
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        if (isCurrent) Green else Color(0xFFF5F5F5),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable {
+                                        viewModel.updateLength(l.formatClean())
+                                        viewModel.updateWidth(w.formatClean())
+                                        viewModel.updateHeight(h.formatClean())
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    spot.size,
+                                    fontSize = 12.sp,
+                                    color = if (isCurrent) Color.White else Color(0xFF333333)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── 表单内容 ──
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp, 16.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
             // ── 📦 尺寸信息 ──
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
@@ -94,21 +184,21 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     DimensionInput(
                         label = "长",
-                        value = if (state.form.length > 0) state.form.length.toString() else "",
+                        value = if (state.form.length > 0) state.form.length.formatClean() else "",
                         unit = "cm",
                         onValueChange = { viewModel.updateLength(it) },
                         modifier = Modifier.weight(1f)
                     )
                     DimensionInput(
                         label = "宽",
-                        value = if (state.form.width > 0) state.form.width.toString() else "",
+                        value = if (state.form.width > 0) state.form.width.formatClean() else "",
                         unit = "cm",
                         onValueChange = { viewModel.updateWidth(it) },
                         modifier = Modifier.weight(1f)
                     )
                     DimensionInput(
                         label = "高",
-                        value = if (state.form.height > 0) state.form.height.toString() else "",
+                        value = if (state.form.height > 0) state.form.height.formatClean() else "",
                         unit = "cm",
                         onValueChange = { viewModel.updateHeight(it) },
                         modifier = Modifier.weight(1f)
@@ -332,6 +422,7 @@ fun QuoteScreen(viewModel: QuoteViewModel = hiltViewModel()) {
             }
 
             Spacer(Modifier.height(80.dp))
+            } // 内层 Column（表单滚动区）
         }
     }
 }

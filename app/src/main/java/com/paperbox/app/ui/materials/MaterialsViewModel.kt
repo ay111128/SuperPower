@@ -290,6 +290,12 @@ class MaterialsViewModel @Inject constructor(
         loadMaterials()
     }
 
+    fun setSort(order: String) {
+        if (_uiState.value.sortOrder == order) return
+        _uiState.value = _uiState.value.copy(sortOrder = order)
+        loadMaterials()
+    }
+
     fun saveScrollPosition(index: Int, offset: Int) {
         _uiState.value = _uiState.value.copy(scrollIndex = index, scrollOffset = offset)
     }

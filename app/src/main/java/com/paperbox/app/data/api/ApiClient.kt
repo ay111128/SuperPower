@@ -8,6 +8,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.paperbox.app.BuildConfig
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -129,7 +131,9 @@ class ApiClient @Inject constructor(
         Retrofit.Builder()
             .baseUrl("${getBaseUrl()}/")
             .client(okHttpClient)
-            .addConverterFactory(MoshiConverterFactory.create())
+            .addConverterFactory(MoshiConverterFactory.create(
+                Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+            ))
             .build()
             .create(ApiService::class.java)
     }
@@ -139,7 +143,9 @@ class ApiClient @Inject constructor(
         return Retrofit.Builder()
             .baseUrl("${baseUrl}/")
             .client(okHttpClient)
-            .addConverterFactory(MoshiConverterFactory.create())
+            .addConverterFactory(MoshiConverterFactory.create(
+                Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+            ))
             .build()
             .create(ApiService::class.java)
     }
