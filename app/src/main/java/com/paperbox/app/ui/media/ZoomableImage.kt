@@ -1,6 +1,6 @@
 package com.paperbox.app.ui.media
 
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.background
@@ -14,7 +14,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import coil.compose.AsyncImage
 
 @Composable
@@ -41,29 +40,8 @@ fun ZoomableImage(
         offsetY += panChange.y
     }
 
-    // 基础缩放时不加 transformable（让 HorizontalPager 丝滑滑动）
-    // 缩放后加 transformable（移动素材本身）+ 双击回到原始大小
-    val gestureModifier = Modifier.pointerInput(Unit) {
-        detectTapGestures(
-            onTap = { onTap?.invoke() },
-            onDoubleTap = { tapOffset ->
-                if (scale > 1.5f) {
-                    scale = 1f
-                    offsetX = 0f
-                    offsetY = 0f
-                } else {
-                    scale = 2.5f
-                    offsetX = (size.width / 2f - tapOffset.x) * 1.5f
-                    offsetY = (size.height / 2f - tapOffset.y) * 1.5f
-                }
-            },
-            onLongPress = { onLongPress?.invoke() }
-        )
-    }.then(
-        if (scale > 1.1f) Modifier.transformable(state = transformState)
-        else Modifier
-    )
-
+    // clickable 处理点击（专为滚动容器设计，不阻塞 HorizontalPager）
+    // transformable 始终启用（双指缩放随时可用）
     AsyncImage(
         model = model,
         contentDescription = contentDescription,
@@ -76,7 +54,11 @@ fun ZoomableImage(
                 translationX = offsetX,
                 translationY = offsetY
             )
-            .then(gestureModifier),
+            .transformable(state = transformState)
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null
+            ) { onTap?.invoke() },
         alignment = Alignment.Center
     )
 }
