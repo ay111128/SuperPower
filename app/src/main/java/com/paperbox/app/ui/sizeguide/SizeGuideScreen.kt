@@ -1,6 +1,7 @@
 package com.paperbox.app.ui.sizeguide
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,11 +32,11 @@ private val UnitInactive = Color(0xFFF0F0F0)
 private val UnitInactiveText = Color(0xFF666666)
 private val ResultText = Color(0xFF333333)
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SizeGuideScreen(viewModel: SizeGuideViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsState()
-    var selectedUnit by remember { mutableStateOf("cm") }
+    val categories = listOf("kraft" to "牛皮色", "white" to "白色", "color" to "彩色")
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -69,100 +70,154 @@ fun SizeGuideScreen(viewModel: SizeGuideViewModel = hiltViewModel()) {
                 .padding(padding)
                 .fillMaxSize()
                 .background(BgGray)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ── 输入尺寸 ──
-            Text(
-                "输入尺寸",
-                color = SectionTitle,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
-            )
-
-            // 三个输入框
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SizeInput(
-                    placeholder = "长",
-                    value = state.inputL,
-                    onValueChange = { l -> viewModel.updateInput(l, state.inputW, state.inputH) },
-                    modifier = Modifier.weight(1f)
-                )
-                SizeInput(
-                    placeholder = "宽",
-                    value = state.inputW,
-                    onValueChange = { w -> viewModel.updateInput(state.inputL, w, state.inputH) },
-                    modifier = Modifier.weight(1f)
-                )
-                SizeInput(
-                    placeholder = "高",
-                    value = state.inputH,
-                    onValueChange = { h -> viewModel.updateInput(state.inputL, state.inputW, h) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            // ── 单位选择器 ──
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("mm", "cm", "m").forEach { unit ->
-                    val isSelected = unit == selectedUnit
+            // ── 分类 tabs ──
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                categories.forEach { (key, label) ->
+                    val count = state.categoryCounts[key] ?: 0
+                    val selected = state.selectedCategory == key
                     Box(
                         modifier = Modifier
-                            .width(60.dp)
+                            .weight(1f)
                             .height(36.dp)
                             .background(
-                                if (isSelected) Green else UnitInactive,
+                                if (selected) Green else Color(0xFFF0F0F0),
                                 RoundedCornerShape(8.dp)
-                            ),
+                            )
+                            .clickable { viewModel.selectCategory(key) },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            unit,
+                            "$label（$count）",
                             fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
-                            color = if (isSelected) Color.White else UnitInactiveText
+                            color = if (selected) Color.White else Color(0xFF333333),
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
                         )
                     }
                 }
             }
 
-            // ── 匹配结果 ──
-            if (state.matchedResults.isNotEmpty()) {
+            // ── 内容区 ──
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // ── 输入尺寸 ──
                 Text(
-                    "匹配结果",
+                    "输入尺寸",
                     color = SectionTitle,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium
                 )
 
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(state.matchedResults) { result ->
-                        Card(
-                            shape = RoundedCornerShape(10.dp),
-                            colors = CardDefaults.cardColors(containerColor = InputBg),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(56.dp)
-                                    .padding(horizontal = 14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                // 三个输入框
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SizeInput(
+                        placeholder = "长",
+                        value = state.inputL,
+                        onValueChange = { l -> viewModel.updateInput(l, state.inputW, state.inputH) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    SizeInput(
+                        placeholder = "宽",
+                        value = state.inputW,
+                        onValueChange = { w -> viewModel.updateInput(state.inputL, w, state.inputH) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    SizeInput(
+                        placeholder = "高",
+                        value = state.inputH,
+                        onValueChange = { h -> viewModel.updateInput(state.inputL, state.inputW, h) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // ── 匹配结果 or 全部规格 ──
+                if (state.matchedResults.isNotEmpty()) {
+                    Text(
+                        "匹配结果",
+                        color = SectionTitle,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(state.matchedResults) { result ->
+                            Card(
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(containerColor = InputBg),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                             ) {
-                                Text(
-                                    "${result.product.size} - ${result.product.category}",
-                                    fontSize = 13.sp,
-                                    color = ResultText
-                                )
-                                Icon(
-                                    Icons.Default.CheckCircle,
-                                    contentDescription = "选中",
-                                    tint = Green,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(56.dp)
+                                        .padding(horizontal = 14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "${result.product.size} - ${result.product.category}",
+                                        fontSize = 13.sp,
+                                        color = ResultText
+                                    )
+                                    Icon(
+                                        Icons.Default.CheckCircle,
+                                        contentDescription = "选中",
+                                        tint = Green,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else if (state.filteredProducts.isNotEmpty()) {
+                    Text(
+                        "全部规格",
+                        color = SectionTitle,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(state.filteredProducts) { product ->
+                            Card(
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = InputBg),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp)
+                                        .padding(horizontal = 14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        product.size,
+                                        fontSize = 13.sp,
+                                        color = ResultText
+                                    )
+                                    Text(
+                                        "¥${String.format("%.2f", product.price)}",
+                                        fontSize = 13.sp,
+                                        color = Green,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                             }
                         }
                     }

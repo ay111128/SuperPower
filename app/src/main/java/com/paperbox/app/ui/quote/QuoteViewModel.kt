@@ -18,8 +18,6 @@ data class QuoteUiState(
     val result: QuoteComputation? = null,
     val materialConfigs: List<MaterialConfig> = CalculateQuoteUseCase.DEFAULT_MATERIALS,
     val spotProducts: List<com.paperbox.app.data.api.models.SpotProduct> = emptyList(),
-    val selectedSpotCategory: String = "kraft",
-    val spotCategoryCounts: Map<String, Int> = emptyMap(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val traceCode: String? = null
@@ -60,12 +58,7 @@ class QuoteViewModel @Inject constructor(
                 // 加载现货产品
                 val spots = apiService.getSpotProducts()
                 if (spots.isSuccessful) {
-                    val list = spots.body()!!
-                    val counts = list.groupBy { it.category }.mapValues { it.value.size }
-                    _uiState.value = _uiState.value.copy(
-                        spotProducts = list,
-                        spotCategoryCounts = counts
-                    )
+                    _uiState.value = _uiState.value.copy(spotProducts = spots.body()!!)
                 }
             } catch (_: Exception) {
                 // 使用默认值
@@ -130,10 +123,6 @@ class QuoteViewModel @Inject constructor(
         val state = _uiState.value
         val result = calculateQuote.calculate(state.form, state.materialConfigs)
         _uiState.value = state.copy(result = result)
-    }
-
-    fun selectSpotCategory(category: String) {
-        _uiState.value = _uiState.value.copy(selectedSpotCategory = category)
     }
 
     fun saveQuoteRecord() {

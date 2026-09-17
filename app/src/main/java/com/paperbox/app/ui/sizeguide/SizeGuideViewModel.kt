@@ -14,7 +14,8 @@ import javax.inject.Inject
 data class SizeGuideUiState(
     val products: List<SpotProduct> = emptyList(),
     val filteredProducts: List<SpotProduct> = emptyList(),
-    val selectedCategory: String = "all",
+    val selectedCategory: String = "kraft",
+    val categoryCounts: Map<String, Int> = emptyMap(),
     val searchQuery: String = "",
     val inputL: String = "",
     val inputW: String = "",
@@ -50,9 +51,11 @@ class SizeGuideViewModel @Inject constructor(
                 val response = apiService.getSpotProducts()
                 if (response.isSuccessful) {
                     val products = response.body()!!
+                    val counts = products.groupBy { it.category }.mapValues { it.value.size }
                     _uiState.value = _uiState.value.copy(
                         products = products,
-                        filteredProducts = products,
+                        filteredProducts = products.filter { it.category == "kraft" },
+                        categoryCounts = counts,
                         isLoading = false
                     )
                 } else {
