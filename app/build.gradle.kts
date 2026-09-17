@@ -14,8 +14,8 @@ android {
         applicationId = "com.paperbox.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 20
-        versionName = "0.2.17"
+        versionCode = 21
+        versionName = "0.2.18"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

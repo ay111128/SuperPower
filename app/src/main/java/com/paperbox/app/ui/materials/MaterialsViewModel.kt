@@ -264,9 +264,10 @@ class MaterialsViewModel @Inject constructor(
     }
 
     fun toggleTag(tag: String) {
-        val current = _uiState.value.selectedTags.toMutableSet()
-        if (current.contains(tag)) current.remove(tag) else current.add(tag)
-        _uiState.value = _uiState.value.copy(selectedTags = current)
+        val current = _uiState.value.selectedTags
+        // 单选逻辑：点击已选中的标签则取消，否则替换为新标签
+        val next = if (current.contains(tag)) emptySet() else setOf(tag)
+        _uiState.value = _uiState.value.copy(selectedTags = next)
         loadMaterials()
     }
 
