@@ -41,9 +41,10 @@ fun ZoomableImage(
         offsetY += panChange.y
     }
 
-    // transformable 放前面，让多指手势优先被它处理
-    // pointerInput 放后面处理单指点击
-    val gestureModifier = (if (scale > 1.1f) Modifier.transformable(state = transformState) else Modifier)
+    // transformable 始终启用，让双指缩放随时可用
+    // pointerInput 处理单指点击
+    val gestureModifier = Modifier
+        .transformable(state = transformState)
         .pointerInput(Unit) {
             detectTapGestures(
                 onTap = { onTap?.invoke() },
