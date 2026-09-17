@@ -59,6 +59,9 @@ interface ApiService {
         @Query("online") online: String? = null
     ): Response<ColorCountsResponse>
 
+    @GET("materials-api/materials/filter-counts")
+    suspend fun getFilterCounts(): Response<FilterCountsResponse>
+
     @POST("materials-api/materials/scan-duplicates")
     suspend fun scanDuplicates(): Response<Map<String, Any>>
 

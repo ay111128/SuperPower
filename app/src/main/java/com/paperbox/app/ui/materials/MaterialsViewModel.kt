@@ -15,6 +15,7 @@ import com.paperbox.app.data.api.ApiService
 import com.paperbox.app.data.api.PrefsKeys
 import com.paperbox.app.data.api.dataStore
 import com.paperbox.app.data.api.models.ColorItem
+import com.paperbox.app.data.api.models.FilterCountsResponse
 import com.paperbox.app.data.api.models.MaterialItem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -49,6 +50,11 @@ data class MaterialsUiState(
     val isSearchActive: Boolean = false,
     val searchFieldText: String = "",
     val allMaterials: List<MaterialItem> = emptyList(),
+    // 分页
+    val hasMore: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    // 服务端筛选计数
+    val filterCounts: FilterCountsResponse = FilterCountsResponse(),
     // 滚动位置记忆
     val scrollIndex: Int = 0,
     val scrollOffset: Int = 0,
@@ -83,12 +89,18 @@ class MaterialsViewModel @Inject constructor(
         loadMaterials()
         loadColors()
         loadTags()
-        loadAllMaterialsForCounts()
+        loadFilterCounts()
+    }
+
+    companion object {
+        private const val PAGE_SIZE = 50
     }
 
     fun loadMaterials(offset: Int = 0) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            if (offset == 0) {
+                _uiState.value = _uiState.value.copy(isLoading = true)
+            }
             try {
                 val state = _uiState.value
                 val tagsParam = state.selectedTags.joinToString(",").ifBlank { null }
@@ -96,7 +108,7 @@ class MaterialsViewModel @Inject constructor(
                     color = state.selectedColor.ifBlank { null },
                     tags = tagsParam,
                     query = state.searchQuery.ifBlank { null },
-                    limit = 50,
+                    limit = PAGE_SIZE,
                     offset = offset
                 )
                 if (response.isSuccessful) {
@@ -112,36 +124,43 @@ class MaterialsViewModel @Inject constructor(
                             else -> true
                         }
                     }
+                    val newMaterials = if (offset == 0) filtered
+                    else state.materials + filtered
                     _uiState.value = _uiState.value.copy(
-                        materials = filtered,
+                        materials = newMaterials,
                         allMaterials = if (_uiState.value.isSearchActive) body.items else _uiState.value.allMaterials,
                         total = body.total,
-                        isLoading = false
+                        hasMore = offset + body.items.size < body.total,
+                        isLoading = false,
+                        isLoadingMore = false
                     )
                     // 异步加载视频缩略图
                     loadVideoThumbnails(filtered)
-                    // 日志：打印所有素材类型
-                    body.items.forEach { m ->
-                        diagLog("Material: id=${m.id} type='${m.type}' name='${m.name}'")
-                    }
-                    diagnoseImageLoading()
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     errorMessage = "加载失败：${e.message}",
-                    isLoading = false
+                    isLoading = false,
+                    isLoadingMore = false
                 )
             }
         }
     }
 
-    /** 加载全量素材数据用于下拉框计数 */
-    private fun loadAllMaterialsForCounts() {
+    fun loadMore() {
+        if (_uiState.value.isLoadingMore || !_uiState.value.hasMore) return
+        _uiState.value = _uiState.value.copy(isLoadingMore = true)
+        loadMaterials(offset = _uiState.value.materials.size)
+    }
+
+    /** 从服务端加载筛选计数（颜色/标签/类型） */
+    private fun loadFilterCounts() {
         viewModelScope.launch {
             try {
-                val response = apiService.getMaterials(limit = 1000, offset = 0)
+                val response = apiService.getFilterCounts()
                 if (response.isSuccessful) {
-                    _uiState.value = _uiState.value.copy(allMaterials = response.body()?.items ?: emptyList())
+                    val counts = response.body()!!
+                    _uiState.value = _uiState.value.copy(filterCounts = counts)
                 }
             } catch (_: Exception) { }
         }
@@ -309,17 +328,13 @@ class MaterialsViewModel @Inject constructor(
     }
 
     fun dismissSearch() {
-        val fieldText = _uiState.value.searchFieldText
-        val previousQuery = _uiState.value.searchQuery
         searchDebounceJob?.cancel()
         _uiState.value = _uiState.value.copy(
             isSearchActive = false,
             searchFieldText = "",
             searchQuery = ""
         )
-        if (fieldText != previousQuery) {
-            loadMaterials()
-        }
+        loadMaterials()
     }
 
     fun showUploadSheet() {
@@ -375,6 +390,7 @@ class MaterialsViewModel @Inject constructor(
                         toastMessage = "标签已更新"
                     )
                     loadMaterials()
+                    loadFilterCounts()
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -406,6 +422,7 @@ class MaterialsViewModel @Inject constructor(
                         toastMessage = "已删除"
                     )
                     loadMaterials()
+                    loadFilterCounts()
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -547,6 +564,7 @@ class MaterialsViewModel @Inject constructor(
                         toastMessage = "成功上传 ${body.created.size} 个文件"
                     )
                     loadMaterials()
+                    loadFilterCounts()
                 } else {
                     _uiState.value = _uiState.value.copy(
                         errorMessage = "上传失败：${response.code()}",

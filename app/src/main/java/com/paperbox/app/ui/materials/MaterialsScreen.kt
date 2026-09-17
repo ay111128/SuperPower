@@ -284,16 +284,12 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // 计算各筛选项数量
-                val allMats = state.allMaterials
-                val totalCount = allMats.size
-                val colorCounts = allMats.groupBy { it.color }.mapValues { it.value.size }
-                val tagCounts = allMats.flatMap { it.tags }.groupingBy { it }.eachCount()
-                val typeCounts = mapOf(
-                    "image" to allMats.count { it.type.startsWith("image") },
-                    "video" to allMats.count { it.type.startsWith("video") },
-                    "doc" to allMats.count { it.type.contains("pdf") || it.type.contains("document") || it.type.contains("msword") }
-                )
+                // 使用服务端筛选计数
+                val fc = state.filterCounts
+                val totalCount = fc.total
+                val colorCounts = fc.colorCounts
+                val tagCounts = fc.tagCounts
+                val typeCounts = fc.typeCounts
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -455,6 +451,31 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                                 onMore = { viewModel.showMaterialOptions(material) }
                             )
                         }
+                        // 加载更多
+                        if (state.hasMore) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (state.isLoadingMore) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(24.dp),
+                                            color = Green
+                                        )
+                                    } else {
+                                        Text(
+                                            "加载更多",
+                                            color = Green,
+                                            fontSize = 14.sp,
+                                            modifier = Modifier.clickable { viewModel.loadMore() }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                     "list" -> LazyColumn(
                         state = listState,
@@ -479,6 +500,31 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                                 },
                                 onMore = { viewModel.showMaterialOptions(material) }
                             )
+                        }
+                        // 加载更多
+                        if (state.hasMore) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (state.isLoadingMore) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(24.dp),
+                                            color = Green
+                                        )
+                                    } else {
+                                        Text(
+                                            "加载更多",
+                                            color = Green,
+                                            fontSize = 14.sp,
+                                            modifier = Modifier.clickable { viewModel.loadMore() }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

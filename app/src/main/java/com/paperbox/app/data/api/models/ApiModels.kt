@@ -86,6 +86,16 @@ data class TagsResponse(
     val tags: List<String>
 )
 
+// ── 筛选计数 ──
+
+@JsonClass(generateAdapter = true)
+data class FilterCountsResponse(
+    val total: Int = 0,
+    val colorCounts: Map<String, Int> = emptyMap(),
+    val typeCounts: Map<String, Int> = emptyMap(),
+    val tagCounts: Map<String, Int> = emptyMap()
+)
+
 // ── 现货产品 ──
 
 @JsonClass(generateAdapter = true)
