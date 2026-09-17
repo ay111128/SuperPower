@@ -119,9 +119,13 @@ if ! git push github master; then
 fi
 echo "   ✅ 已推送到 GitHub，构建已触发"
 
-# 同步推送到 Gitee
-echo "   📤 同步推送到 Gitee..."
-git push origin master || echo "   ⚠️  Gitee 推送失败（不影响构建）"
+# 同步推送到 Gitee（如果配置了 origin 远端）
+if git remote get-url origin &>/dev/null; then
+  echo "   📤 同步推送到 Gitee..."
+  git push origin master || echo "   ⚠️  Gitee 推送失败（不影响构建）"
+else
+  echo "   ⏭️  未配置 Gitee 远端，跳过"
+fi
 
 # 第4步：轮询构建
 echo ""

@@ -315,7 +315,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                             else state.tags.indexOfFirst { it in state.selectedTags } + 1,
                         onSelect = { idx ->
                             if (idx == 0) {
-                                state.selectedTags.forEach { viewModel.toggleTag(it) }
+                                viewModel.clearTags()
                             } else {
                                 viewModel.toggleTag(state.tags[idx - 1])
                             }
@@ -425,105 +425,81 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                 }
 
                 when (state.layoutMode) {
-                    "grid" -> LazyVerticalGrid(
-                        state = gridState,
-                        columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(state.materials, key = { it.id }) { material ->
-                            MaterialGridCard(
-                                material = material,
-                                videoThumbnail = state.videoThumbnails[material.id],
-                                onClick = {
-                                    val idx = state.materials.indexOf(material)
-                                    val json = com.squareup.moshi.Moshi.Builder().build()
-                                        .adapter(List::class.java)
-                                        .toJson(state.materials)
-                                    navController.currentBackStackEntry?.savedStateHandle?.apply {
-                                        set("materials_json", json)
-                                        set("current_index", idx)
-                                    }
-                                    val encodedType = URLEncoder.encode(material.type, "UTF-8")
-                                    navController.navigate("media_viewer/${material.id}/$encodedType")
-                                },
-                                onMore = { viewModel.showMaterialOptions(material) }
-                            )
-                        }
-                        // 加载更多
-                        if (state.hasMore) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (state.isLoadingMore) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(24.dp),
-                                            color = Green
-                                        )
-                                    } else {
-                                        Text(
-                                            "加载更多",
-                                            color = Green,
-                                            fontSize = 14.sp,
-                                            modifier = Modifier.clickable { viewModel.loadMore() }
-                                        )
+                    "grid" -> {
+                        // 无限滚动：滑到底部自动加载更多
+                        LaunchedEffect(gridState, state.hasMore, state.isLoadingMore) {
+                            snapshotFlow { gridState.layoutInfo }
+                                .collect { layoutInfo ->
+                                    val totalItems = layoutInfo.totalItemsCount
+                                    val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                                    if (totalItems > 0 && lastVisible >= totalItems - 3 && state.hasMore && !state.isLoadingMore) {
+                                        viewModel.loadMore()
                                     }
                                 }
+                        }
+                        LazyVerticalGrid(
+                            state = gridState,
+                            columns = GridCells.Fixed(2),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(state.materials, key = { it.id }) { material ->
+                                MaterialGridCard(
+                                    material = material,
+                                    videoThumbnail = state.videoThumbnails[material.id],
+                                    onClick = {
+                                        val idx = state.materials.indexOf(material)
+                                        val json = com.squareup.moshi.Moshi.Builder().build()
+                                            .adapter(List::class.java)
+                                            .toJson(state.materials)
+                                        navController.currentBackStackEntry?.savedStateHandle?.apply {
+                                            set("materials_json", json)
+                                            set("current_index", idx)
+                                        }
+                                        val encodedType = URLEncoder.encode(material.type, "UTF-8")
+                                        navController.navigate("media_viewer/${material.id}/$encodedType")
+                                    },
+                                    onMore = { viewModel.showMaterialOptions(material) }
+                                )
                             }
                         }
                     }
-                    "list" -> LazyColumn(
-                        state = listState,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(state.materials, key = { it.id }) { material ->
-                            MaterialListCard(
-                                material = material,
-                                videoThumbnail = state.videoThumbnails[material.id],
-                                onClick = {
-                                    val idx = state.materials.indexOf(material)
-                                    val json = com.squareup.moshi.Moshi.Builder().build()
-                                        .adapter(List::class.java)
-                                        .toJson(state.materials)
-                                    navController.currentBackStackEntry?.savedStateHandle?.apply {
-                                        set("materials_json", json)
-                                        set("current_index", idx)
-                                    }
-                                    val encodedType = URLEncoder.encode(material.type, "UTF-8")
-                                    navController.navigate("media_viewer/${material.id}/$encodedType")
-                                },
-                                onMore = { viewModel.showMaterialOptions(material) }
-                            )
-                        }
-                        // 加载更多
-                        if (state.hasMore) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (state.isLoadingMore) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(24.dp),
-                                            color = Green
-                                        )
-                                    } else {
-                                        Text(
-                                            "加载更多",
-                                            color = Green,
-                                            fontSize = 14.sp,
-                                            modifier = Modifier.clickable { viewModel.loadMore() }
-                                        )
+                    "list" -> {
+                        // 无限滚动：滑到底部自动加载更多
+                        LaunchedEffect(listState, state.hasMore, state.isLoadingMore) {
+                            snapshotFlow { listState.layoutInfo }
+                                .collect { layoutInfo ->
+                                    val totalItems = layoutInfo.totalItemsCount
+                                    val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                                    if (totalItems > 0 && lastVisible >= totalItems - 3 && state.hasMore && !state.isLoadingMore) {
+                                        viewModel.loadMore()
                                     }
                                 }
+                        }
+                        LazyColumn(
+                            state = listState,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(state.materials, key = { it.id }) { material ->
+                                MaterialListCard(
+                                    material = material,
+                                    videoThumbnail = state.videoThumbnails[material.id],
+                                    onClick = {
+                                        val idx = state.materials.indexOf(material)
+                                        val json = com.squareup.moshi.Moshi.Builder().build()
+                                            .adapter(List::class.java)
+                                            .toJson(state.materials)
+                                        navController.currentBackStackEntry?.savedStateHandle?.apply {
+                                            set("materials_json", json)
+                                            set("current_index", idx)
+                                        }
+                                        val encodedType = URLEncoder.encode(material.type, "UTF-8")
+                                        navController.navigate("media_viewer/${material.id}/$encodedType")
+                                    },
+                                    onMore = { viewModel.showMaterialOptions(material) }
+                                )
                             }
                         }
                     }
@@ -746,7 +722,7 @@ private fun FilterDropdown(
                     Text(
                         options.getOrElse(selectedIndex) { label },
                         fontSize = 11.sp,
-                        color = if (selectedIndex == 0) Color(0xFF999999) else Color(0xFF333333)
+                        color = Color(0xFF333333)
                     )
                     Icon(
                         Icons.Default.ArrowDropDown,

@@ -270,6 +270,11 @@ class MaterialsViewModel @Inject constructor(
         loadMaterials()
     }
 
+    fun clearTags() {
+        _uiState.value = _uiState.value.copy(selectedTags = emptySet())
+        loadMaterials()
+    }
+
     fun toggleLayout() {
         val newMode = if (_uiState.value.layoutMode == "grid") "list" else "grid"
         _uiState.value = _uiState.value.copy(layoutMode = newMode, scrollIndex = 0, scrollOffset = 0)
