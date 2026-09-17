@@ -83,6 +83,7 @@ class MaterialsViewModel @Inject constructor(
         loadMaterials()
         loadColors()
         loadTags()
+        loadAllMaterialsForCounts()
     }
 
     fun loadMaterials(offset: Int = 0) {
@@ -113,7 +114,7 @@ class MaterialsViewModel @Inject constructor(
                     }
                     _uiState.value = _uiState.value.copy(
                         materials = filtered,
-                        allMaterials = body.items,
+                        allMaterials = if (_uiState.value.isSearchActive) body.items else _uiState.value.allMaterials,
                         total = body.total,
                         isLoading = false
                     )
@@ -131,6 +132,18 @@ class MaterialsViewModel @Inject constructor(
                     isLoading = false
                 )
             }
+        }
+    }
+
+    /** 加载全量素材数据用于下拉框计数 */
+    private fun loadAllMaterialsForCounts() {
+        viewModelScope.launch {
+            try {
+                val response = apiService.getMaterials(limit = 1000, offset = 0)
+                if (response.isSuccessful) {
+                    _uiState.value = _uiState.value.copy(allMaterials = response.body()?.items ?: emptyList())
+                }
+            } catch (_: Exception) { }
         }
     }
 
@@ -302,7 +315,7 @@ class MaterialsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             isSearchActive = false,
             searchFieldText = "",
-            searchQuery = fieldText
+            searchQuery = ""
         )
         if (fieldText != previousQuery) {
             loadMaterials()
