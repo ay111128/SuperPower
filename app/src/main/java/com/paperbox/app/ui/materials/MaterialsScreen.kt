@@ -341,7 +341,6 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     Box(
                         modifier = Modifier
                             .height(42.dp)
-                            .background(ToggleBg, RoundedCornerShape(8.dp))
                             .clickable { viewModel.toggleLayout() }
                             .padding(horizontal = 12.dp),
                         contentAlignment = Alignment.Center
@@ -758,7 +757,7 @@ private fun MaterialGridCard(
                             .crossfade(true)
                             .build(),
                         contentDescription = material.name,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().background(Color.Black),
                         contentScale = ContentScale.Crop,
                         loading = {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -884,7 +883,7 @@ private fun MaterialListCard(
                         model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
                             .data(imageUrl).crossfade(true).build(),
                         contentDescription = material.name,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().background(Color.Black),
                         contentScale = ContentScale.Crop,
                         error = {
                             Icon(typeStyle.icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = Color.White.copy(alpha = 0.9f))
@@ -894,7 +893,7 @@ private fun MaterialListCard(
                     androidx.compose.foundation.Image(
                         bitmap = videoThumbnail.asImageBitmap(),
                         contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().background(Color.Black),
                         contentScale = ContentScale.Crop
                     )
                 } else {
