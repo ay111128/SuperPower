@@ -304,16 +304,37 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     FilterDropdown(
                         label = "标签",
                         options = listOf("全部标签") + state.tags,
-                        selectedIndex = 0, // simplified: always "全部"
-                        onSelect = { },
+                        selectedIndex = if (state.selectedTags.isEmpty()) 0
+                            else state.tags.indexOfFirst { it in state.selectedTags } + 1,
+                        onSelect = { idx ->
+                            if (idx == 0) {
+                                // 清除所有标签筛选
+                                state.selectedTags.forEach { viewModel.toggleTag(it) }
+                            } else {
+                                viewModel.toggleTag(state.tags[idx - 1])
+                            }
+                        },
                         modifier = Modifier.weight(1f)
                     )
                     // 类型下拉
                     FilterDropdown(
                         label = "类型",
                         options = listOf("全部类型", "图片", "视频", "文档"),
-                        selectedIndex = 0,
-                        onSelect = { },
+                        selectedIndex = when (state.selectedCategory) {
+                            "image" -> 1
+                            "video" -> 2
+                            "doc" -> 3
+                            else -> 0
+                        },
+                        onSelect = { idx ->
+                            val category = when (idx) {
+                                1 -> "image"
+                                2 -> "video"
+                                3 -> "doc"
+                                else -> "all"
+                            }
+                            viewModel.selectCategory(category)
+                        },
                         modifier = Modifier.weight(1f)
                     )
                     // 视图切换（单按钮切换）

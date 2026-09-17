@@ -99,8 +99,8 @@ fun AppNavGraph() {
                     backStackEntry.arguments?.getString("materialType") ?: "",
                     "UTF-8"
                 )
-                val materialsJson = backStackEntry.savedStateHandle.get<String>("materials_json")
-                val currentIndex = backStackEntry.savedStateHandle.get<Int>("current_index") ?: 0
+                val materialsJson = backStackEntry.previousBackStackEntry?.savedStateHandle?.get<String>("materials_json")
+                val currentIndex = backStackEntry.previousBackStackEntry?.savedStateHandle?.get<Int>("current_index") ?: 0
                 MediaViewerScreen(
                     materialId = materialId,
                     materialType = materialType,
