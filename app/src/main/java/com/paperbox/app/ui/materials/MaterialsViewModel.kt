@@ -113,6 +113,7 @@ class MaterialsViewModel @Inject constructor(
                     }
                     _uiState.value = _uiState.value.copy(
                         materials = filtered,
+                        allMaterials = body.items,
                         total = body.total,
                         isLoading = false
                     )

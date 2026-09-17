@@ -41,27 +41,28 @@ fun ZoomableImage(
         offsetY += panChange.y
     }
 
-    // transformable 始终启用，让双指缩放随时可用
-    // pointerInput 处理单指点击
-    val gestureModifier = Modifier
-        .transformable(state = transformState)
-        .pointerInput(Unit) {
-            detectTapGestures(
-                onTap = { onTap?.invoke() },
-                onDoubleTap = { tapOffset ->
-                    if (scale > 1.5f) {
-                        scale = 1f
-                        offsetX = 0f
-                        offsetY = 0f
-                    } else {
-                        scale = 2.5f
-                        offsetX = (size.width / 2f - tapOffset.x) * 1.5f
-                        offsetY = (size.height / 2f - tapOffset.y) * 1.5f
-                    }
-                },
-                onLongPress = { onLongPress?.invoke() }
-            )
-        }
+    // 基础缩放时不加 transformable（让 HorizontalPager 丝滑滑动）
+    // 缩放后加 transformable（移动素材本身）+ 双击回到原始大小
+    val gestureModifier = Modifier.pointerInput(Unit) {
+        detectTapGestures(
+            onTap = { onTap?.invoke() },
+            onDoubleTap = { tapOffset ->
+                if (scale > 1.5f) {
+                    scale = 1f
+                    offsetX = 0f
+                    offsetY = 0f
+                } else {
+                    scale = 2.5f
+                    offsetX = (size.width / 2f - tapOffset.x) * 1.5f
+                    offsetY = (size.height / 2f - tapOffset.y) * 1.5f
+                }
+            },
+            onLongPress = { onLongPress?.invoke() }
+        )
+    }.then(
+        if (scale > 1.1f) Modifier.transformable(state = transformState)
+        else Modifier
+    )
 
     AsyncImage(
         model = model,
