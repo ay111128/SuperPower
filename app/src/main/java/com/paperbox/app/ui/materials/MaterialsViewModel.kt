@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.provider.OpenableColumns
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -556,13 +557,17 @@ class MaterialsViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, showUploadSheet = false)
             try {
+                val tempFiles = mutableListOf<File>()
                 val parts = uris.mapNotNull { uri ->
-                    val inputStream = context.contentResolver.openInputStream(uri) ?: return@mapNotNull null
-                    val fileName = uri.lastPathSegment ?: "unknown"
-                    val tempFile = File(context.cacheDir, fileName)
-                    tempFile.outputStream().use { inputStream.copyTo(it) }
+                    val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                    val fileName = getFileName(uri) ?: "unknown"
 
-                    val requestBody = tempFile.asRequestBody("application/octet-stream".toMediaTypeOrNull())
+                    val inputStream = context.contentResolver.openInputStream(uri) ?: return@mapNotNull null
+                    val tempFile = File(context.cacheDir, "${System.nanoTime()}_$fileName")
+                    tempFile.outputStream().use { inputStream.copyTo(it) }
+                    tempFiles.add(tempFile)
+
+                    val requestBody = tempFile.asRequestBody(mimeType.toMediaTypeOrNull())
                     MultipartBody.Part.createFormData("files", fileName, requestBody)
                 }
 
@@ -570,6 +575,8 @@ class MaterialsViewModel @Inject constructor(
                     okhttp3.RequestBody.create("text/plain".toMediaTypeOrNull(), it)
                 }
                 val response = apiService.uploadMaterials(files = parts, color = colorBody)
+                tempFiles.forEach { it.delete() }
+
                 if (response.isSuccessful) {
                     val body = response.body()!!
                     _uiState.value = _uiState.value.copy(
@@ -592,5 +599,15 @@ class MaterialsViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun getFileName(uri: Uri): String? {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0) return cursor.getString(idx)
+            }
+        }
+        return uri.lastPathSegment
     }
 }

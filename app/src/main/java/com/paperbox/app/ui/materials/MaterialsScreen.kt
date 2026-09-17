@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -181,6 +182,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             // ── 顶部导航栏 ──
@@ -292,67 +294,78 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                 val tagCounts = fc.tagCounts
                 val typeCounts = fc.typeCounts
 
-                LazyRow(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp),
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    // 分类下拉
-                    item {
-                        FilterDropdown(
-                            label = "分类",
-                            options = listOf("全部分类($totalCount)") + state.colors.map { "${it.name}(${colorCounts[it.name] ?: 0})" },
-                            selectedIndex = if (state.selectedColor.isBlank()) 0
-                                else state.colors.indexOfFirst { it.name == state.selectedColor } + 1,
-                            onSelect = { idx ->
-                                viewModel.selectColor(if (idx == 0) "" else state.colors[idx - 1].name)
-                            },
-                            modifier = Modifier.width(120.dp)
-                        )
+                    // 可滚动的下拉框
+                    LazyRow(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(start = 12.dp),
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        // 分类下拉
+                        item {
+                            FilterDropdown(
+                                label = "分类",
+                                options = listOf("全部分类($totalCount)") + state.colors.map { "${it.name}(${colorCounts[it.name] ?: 0})" },
+                                selectedIndex = if (state.selectedColor.isBlank()) 0
+                                    else state.colors.indexOfFirst { it.name == state.selectedColor } + 1,
+                                onSelect = { idx ->
+                                    viewModel.selectColor(if (idx == 0) "" else state.colors[idx - 1].name)
+                                },
+                                modifier = Modifier.width(120.dp)
+                            )
+                        }
+                        // 标签下拉
+                        item {
+                            FilterDropdown(
+                                label = "标签",
+                                options = listOf("全部标签($totalCount)") + state.tags.map { "$it(${tagCounts[it] ?: 0})" },
+                                selectedIndex = if (state.selectedTags.isEmpty()) 0
+                                    else state.tags.indexOfFirst { it in state.selectedTags } + 1,
+                                onSelect = { idx ->
+                                    if (idx == 0) {
+                                        viewModel.clearTags()
+                                    } else {
+                                        viewModel.toggleTag(state.tags[idx - 1])
+                                    }
+                                },
+                                modifier = Modifier.width(120.dp)
+                            )
+                        }
+                        // 类型下拉
+                        item {
+                            FilterDropdown(
+                                label = "类型",
+                                options = listOf("全部类型($totalCount)", "图片(${typeCounts["image"] ?: 0})", "视频(${typeCounts["video"] ?: 0})", "文档(${typeCounts["doc"] ?: 0})"),
+                                selectedIndex = when (state.selectedCategory) {
+                                    "image" -> 1
+                                    "video" -> 2
+                                    "doc" -> 3
+                                    else -> 0
+                                },
+                                onSelect = { idx ->
+                                    val category = when (idx) {
+                                        1 -> "image"
+                                        2 -> "video"
+                                        3 -> "doc"
+                                        else -> "all"
+                                    }
+                                    viewModel.selectCategory(category)
+                                },
+                                modifier = Modifier.width(120.dp)
+                            )
+                        }
                     }
-                    // 标签下拉
-                    item {
-                        FilterDropdown(
-                            label = "标签",
-                            options = listOf("全部标签($totalCount)") + state.tags.map { "$it(${tagCounts[it] ?: 0})" },
-                            selectedIndex = if (state.selectedTags.isEmpty()) 0
-                                else state.tags.indexOfFirst { it in state.selectedTags } + 1,
-                            onSelect = { idx ->
-                                if (idx == 0) {
-                                    viewModel.clearTags()
-                                } else {
-                                    viewModel.toggleTag(state.tags[idx - 1])
-                                }
-                            },
-                            modifier = Modifier.width(120.dp)
-                        )
-                    }
-                    // 类型下拉
-                    item {
-                        FilterDropdown(
-                            label = "类型",
-                            options = listOf("全部类型($totalCount)", "图片(${typeCounts["image"] ?: 0})", "视频(${typeCounts["video"] ?: 0})", "文档(${typeCounts["doc"] ?: 0})"),
-                            selectedIndex = when (state.selectedCategory) {
-                                "image" -> 1
-                                "video" -> 2
-                                "doc" -> 3
-                                else -> 0
-                            },
-                            onSelect = { idx ->
-                                val category = when (idx) {
-                                    1 -> "image"
-                                    2 -> "video"
-                                    3 -> "doc"
-                                    else -> "all"
-                                }
-                                viewModel.selectCategory(category)
-                            },
-                            modifier = Modifier.width(120.dp)
-                        )
-                    }
-                    // 排序切换
-                    item {
+
+                    // 固定按钮：排序 + 视图切换
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(start = 8.dp, end = 12.dp)
+                    ) {
+                        // 排序切换
                         Box(
                             modifier = Modifier
                                 .width(72.dp)
@@ -380,9 +393,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                                 )
                             }
                         }
-                    }
-                    // 视图切换
-                    item {
+                        // 视图切换
                         Box(
                             modifier = Modifier
                                 .width(42.dp)
@@ -761,7 +772,7 @@ private fun FilterDropdown(
                 ) {
                     Text(
                         options.getOrElse(selectedIndex) { label },
-                        fontSize = 15.sp,
+                        fontSize = 13.sp,
                         color = Color(0xFF333333)
                     )
                     Icon(
