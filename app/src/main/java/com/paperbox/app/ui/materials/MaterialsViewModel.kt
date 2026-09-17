@@ -300,6 +300,7 @@ class MaterialsViewModel @Inject constructor(
         searchDebounceJob?.cancel()
         _uiState.value = _uiState.value.copy(
             isSearchActive = false,
+            searchFieldText = "",
             searchQuery = fieldText
         )
         if (fieldText != previousQuery) {

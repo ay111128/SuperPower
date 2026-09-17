@@ -284,6 +284,17 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                // 计算各筛选项数量
+                val allMats = state.allMaterials
+                val totalCount = allMats.size
+                val colorCounts = allMats.groupBy { it.color }.mapValues { it.value.size }
+                val tagCounts = allMats.flatMap { it.tags }.groupingBy { it }.eachCount()
+                val typeCounts = mapOf(
+                    "image" to allMats.count { it.type.startsWith("image") },
+                    "video" to allMats.count { it.type.startsWith("video") },
+                    "doc" to allMats.count { it.type.contains("pdf") || it.type.contains("document") || it.type.contains("msword") }
+                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -292,7 +303,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     // 分类下拉
                     FilterDropdown(
                         label = "分类",
-                        options = listOf("全部分类") + state.colors.map { it.name },
+                        options = listOf("全部分类($totalCount)") + state.colors.map { "${it.name}(${colorCounts[it.name] ?: 0})" },
                         selectedIndex = if (state.selectedColor.isBlank()) 0
                             else state.colors.indexOfFirst { it.name == state.selectedColor } + 1,
                         onSelect = { idx ->
@@ -303,12 +314,11 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     // 标签下拉
                     FilterDropdown(
                         label = "标签",
-                        options = listOf("全部标签") + state.tags,
+                        options = listOf("全部标签($totalCount)") + state.tags.map { "$it(${tagCounts[it] ?: 0})" },
                         selectedIndex = if (state.selectedTags.isEmpty()) 0
                             else state.tags.indexOfFirst { it in state.selectedTags } + 1,
                         onSelect = { idx ->
                             if (idx == 0) {
-                                // 清除所有标签筛选
                                 state.selectedTags.forEach { viewModel.toggleTag(it) }
                             } else {
                                 viewModel.toggleTag(state.tags[idx - 1])
@@ -319,7 +329,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     // 类型下拉
                     FilterDropdown(
                         label = "类型",
-                        options = listOf("全部类型", "图片", "视频", "文档"),
+                        options = listOf("全部类型($totalCount)", "图片(${typeCounts["image"] ?: 0})", "视频(${typeCounts["video"] ?: 0})", "文档(${typeCounts["doc"] ?: 0})"),
                         selectedIndex = when (state.selectedCategory) {
                             "image" -> 1
                             "video" -> 2
