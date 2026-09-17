@@ -46,6 +46,7 @@ data class MaterialsUiState(
     val selectedCategory: String = "all",
     val selectedTags: Set<String> = emptySet(),
     val searchQuery: String = "",
+    val sortOrder: String = "desc", // "asc" or "desc"
     // 内联搜索
     val isSearchActive: Boolean = false,
     val searchFieldText: String = "",
@@ -108,6 +109,7 @@ class MaterialsViewModel @Inject constructor(
                     color = state.selectedColor.ifBlank { null },
                     tags = tagsParam,
                     query = state.searchQuery.ifBlank { null },
+                    sort = state.sortOrder,
                     limit = PAGE_SIZE,
                     offset = offset
                 )
@@ -279,6 +281,12 @@ class MaterialsViewModel @Inject constructor(
     fun toggleLayout() {
         val newMode = if (_uiState.value.layoutMode == "grid") "list" else "grid"
         _uiState.value = _uiState.value.copy(layoutMode = newMode, scrollIndex = 0, scrollOffset = 0)
+    }
+
+    fun toggleSort() {
+        val newSort = if (_uiState.value.sortOrder == "desc") "asc" else "desc"
+        _uiState.value = _uiState.value.copy(sortOrder = newSort)
+        loadMaterials()
     }
 
     fun saveScrollPosition(index: Int, offset: Int) {
