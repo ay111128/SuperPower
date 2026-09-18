@@ -12,10 +12,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.paperbox.app.data.api.dataStore
 import com.paperbox.app.data.api.PrefsKeys
 import com.paperbox.app.ui.auth.LoginScreen
+import com.paperbox.app.ui.quote.QuoteResultPage
 import com.paperbox.app.ui.quote.QuoteScreen
+import com.paperbox.app.ui.quote.QuoteViewModel
 import com.paperbox.app.ui.sizeguide.SizeGuideScreen
 import com.paperbox.app.ui.materials.MaterialsScreen
 import com.paperbox.app.ui.media.MediaViewerScreen
@@ -25,6 +28,9 @@ import com.paperbox.app.R
 import com.paperbox.app.ui.components.BottomNavBar
 import com.paperbox.app.ui.components.BottomNavItem
 import java.net.URLDecoder
+
+/** 报价结果页 —— 整屏推入，不在底部 tab 里 */
+const val QUOTE_RESULT_ROUTE = "quote_result"
 
 sealed class Screen(val route: String, val title: String) {
     data object Quote : Screen("quote", "报价")
@@ -78,16 +84,60 @@ fun AppNavGraph() {
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val isMediaViewer = currentRoute?.startsWith("media_viewer") == true
+    // 全屏页：素材查看页和报价结果页都不要底部导航栏
+    val isFullScreen = currentRoute?.startsWith("media_viewer") == true ||
+        currentRoute == QUOTE_RESULT_ROUTE
 
-    // 单一 NavHost，根据是否是媒体查看页决定是否包裹 Scaffold
+    // 切底部 tab 的统一入口，和底部栏点击用的是同一套行为
+    val navigateToTab: (String) -> Unit = { route ->
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    // 单一 NavHost，根据是否是全屏页决定是否包裹 Scaffold
     val navHost = @Composable { modifier: Modifier ->
         NavHost(
             navController = navController,
             startDestination = Screen.Quote.route,
             modifier = modifier
         ) {
-            composable(Screen.Quote.route) { QuoteScreen() }
+            composable(Screen.Quote.route) {
+                QuoteScreen(
+                    onGenerateQuote = { navController.navigate(QUOTE_RESULT_ROUTE) },
+                    onOpenSizeGuide = { navigateToTab(Screen.SizeGuide.route) }
+                )
+            }
+            composable(QUOTE_RESULT_ROUTE) { entry ->
+                // 必须显式传 owner，否则 hiltViewModel() 会新建第二个
+                // QuoteViewModel（表单全 0、result 为 null），页面一片空白
+                val parentEntry = remember(entry) {
+                    runCatching { navController.getBackStackEntry(Screen.Quote.route) }.getOrNull()
+                }
+                if (parentEntry == null) {
+                    LaunchedEffect(Unit) { navController.popBackStack() }
+                } else {
+                    val quoteViewModel: QuoteViewModel = hiltViewModel(parentEntry)
+                    val state by quoteViewModel.uiState.collectAsState()
+
+                    // 进程死亡重建时表单会丢，没有结果就直接退回报价页
+                    LaunchedEffect(state.result) {
+                        if (state.result == null) navController.popBackStack()
+                    }
+
+                    QuoteResultPage(
+                        state = state,
+                        onBack = { navController.popBackStack() },
+                        onSave = { quoteViewModel.saveQuoteRecord() },
+                        onClearTraceCode = { quoteViewModel.clearTraceCode() },
+                        onClearError = { quoteViewModel.clearError() }
+                    )
+                }
+            }
             composable(Screen.SizeGuide.route) { SizeGuideScreen() }
             composable(Screen.Materials.route) { MaterialsScreen(navController = navController) }
             composable(Screen.Analysis.route) { AnalysisScreen() }
@@ -112,8 +162,8 @@ fun AppNavGraph() {
         }
     }
 
-    if (isMediaViewer) {
-        // 素材查看页：无 Scaffold，全屏铺满
+    if (isFullScreen) {
+        // 全屏页：无 Scaffold，铺满整屏
         navHost(Modifier.fillMaxSize())
     } else {
         // 普通页面：有底部导航栏
@@ -123,15 +173,7 @@ fun AppNavGraph() {
                 BottomNavBar(
                     items = bottomTabs.map { it.toBottomNavItem() },
                     selectedRoute = currentRoute ?: Screen.Quote.route,
-                    onItemSelected = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
+                    onItemSelected = navigateToTab
                 )
             }
         ) { innerPadding ->

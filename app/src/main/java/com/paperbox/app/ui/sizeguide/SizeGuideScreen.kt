@@ -167,7 +167,7 @@ fun SizeGuideScreen(viewModel: SizeGuideViewModel = hiltViewModel()) {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        "${result.product.size} - ${result.product.category}",
+                                        "${result.size} - ${result.category}",
                                         fontSize = 13.sp,
                                         color = ResultText
                                     )

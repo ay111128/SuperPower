@@ -63,79 +63,100 @@ class CalculateQuoteUseCase @Inject constructor() {
         val materialCost = unitPrice * areaM2 * qty
         chargeLines.add(ChargeLine("材料费", materialCost, "${unitPrice}元/m² × ${String.format("%.4f", areaM2)}m² × $qty"))
 
+        // ═══ 印刷定制 ═══
+        var printProcessCost = 0.0
+
         // 满印油墨
         if (form.processes.fullPrintEnabled && form.processes.fullPrintUnitPrice > 0) {
             val cost = form.processes.fullPrintUnitPrice * areaM2 * sidedMultiplier * qty
             chargeLines.add(ChargeLine("满印油墨", cost))
+            printProcessCost += cost
         }
 
         // 印刷费
         if (form.processes.printingEnabled && form.processes.printingUnitPrice > 0) {
-            val perUnit = form.processes.printingUnitPrice
-            val cost = if (qty < form.processes.printingMinQuantity && form.processes.printingMinFee > 0) {
-                form.processes.printingMinFee
-            } else {
-                perUnit * qty
-            }
+            val cost = tieredFee(
+                qty, form.processes.printingMinQuantity,
+                form.processes.printingMinFee, form.processes.printingUnitPrice
+            )
             chargeLines.add(ChargeLine("印刷费", cost))
+            printProcessCost += cost
         }
 
         // 丝印费
         if (form.processes.screenPrintEnabled && form.processes.screenPrintUnitPrice > 0) {
-            val perUnit = form.processes.screenPrintUnitPrice
-            val cost = if (qty < form.processes.screenPrintMinQuantity && form.processes.screenPrintMinFee > 0) {
-                form.processes.screenPrintMinFee
-            } else {
-                perUnit * qty
-            }
+            val cost = tieredFee(
+                qty, form.processes.screenPrintMinQuantity,
+                form.processes.screenPrintMinFee, form.processes.screenPrintUnitPrice
+            )
             chargeLines.add(ChargeLine("丝印费", cost))
+            printProcessCost += cost
         }
 
         // 覆膜
         if (form.processes.laminationEnabled && form.processes.laminationUnitPrice > 0) {
             val cost = form.processes.laminationUnitPrice * areaM2 * sidedMultiplier * qty
             chargeLines.add(ChargeLine("覆膜", cost))
+            printProcessCost += cost
         }
 
         // 裱纸
         if (form.processes.mountingEnabled && form.processes.mountingUnitPrice > 0) {
             val cost = form.processes.mountingUnitPrice * areaM2 * sidedMultiplier * qty
             chargeLines.add(ChargeLine("裱纸", cost))
+            printProcessCost += cost
         }
+
+        // ═══ 基础选项 ═══
+        var basicProcessCost = 0.0
 
         // 模切费
         if (form.processes.dieCutEnabled && form.processes.dieCutUnitPrice > 0) {
-            val cost = if (qty < form.processes.dieCutMinQuantity && form.processes.dieCutMinFee > 0) {
-                form.processes.dieCutMinFee
-            } else {
-                form.processes.dieCutUnitPrice * qty
-            }
+            val cost = tieredFee(
+                qty, form.processes.dieCutMinQuantity,
+                form.processes.dieCutMinFee, form.processes.dieCutUnitPrice
+            )
             chargeLines.add(ChargeLine("模切费", cost))
+            basicProcessCost += cost
         }
 
         // 刀模费
         if (form.processes.toolingEnabled && form.processes.toolingFee > 0) {
             chargeLines.add(ChargeLine("刀模费", form.processes.toolingFee))
+            basicProcessCost += form.processes.toolingFee
         }
 
-        // 杂费
+        // 杂费 —— Web 端按订单数量计（buildUnitChargeLine 传的是 orderQuantity），
+        // 不是按 processes.miscQuantity，别改回去
         if (form.processes.miscEnabled && form.processes.miscPerUnit > 0) {
-            val cost = form.processes.miscPerUnit * form.processes.miscQuantity
+            val cost = form.processes.miscPerUnit * qty
             chargeLines.add(ChargeLine("杂费", cost))
+            basicProcessCost += cost
+        }
+
+        // 工厂加价归入基础选项（设计稿里它是基础选项的第 3 项）
+        if (form.extraFeeEnabled && form.extraFee > 0) {
+            basicProcessCost += form.extraFee
+        }
+
+        // 5. 物流费 —— 必须在算 subtotal 之前加进 chargeLines，
+        // Web 端它就是 baseChargeLines 的一项
+        if (form.processes.logisticsEnabled && form.processes.logisticsFee > 0) {
+            chargeLines.add(ChargeLine("物流费", form.processes.logisticsFee))
         }
 
         val subtotal = chargeLines.sumOf { it.amount }
 
-        // 5. 加价（工厂附加费）
+        // 6. 加价（工厂附加费）
         val afterExtraFee = if (form.extraFeeEnabled) subtotal + form.extraFee else subtotal
 
-        // 6. 利润
+        // 7. 利润
         val profit = when (form.profitMode) {
             ProfitMode.PERCENTAGE -> afterExtraFee * form.profitPercentage / 100.0
             ProfitMode.AMOUNT -> form.profitAmount
         }
 
-        // 7. 特殊费用
+        // 8. 特殊费用
         val specialFeesSum = form.specialFees
             .filter { it.enabled }
             .sumOf { fee ->
@@ -145,12 +166,6 @@ class CalculateQuoteUseCase @Inject constructor() {
                 }
             }
 
-        // 8. 物流费
-        val logisticsCost = if (form.processes.logisticsEnabled) form.processes.logisticsFee else 0.0
-        if (logisticsCost > 0) {
-            chargeLines.add(ChargeLine("物流费", logisticsCost))
-        }
-
         val finalAmount = afterExtraFee + profit + specialFeesSum
         val markupTotal = subtotal * form.markupRate
 
@@ -158,6 +173,8 @@ class CalculateQuoteUseCase @Inject constructor() {
             layouts = layouts,
             areaM2 = areaM2,
             materialLabel = material.label,
+            materialKey = material.key,
+            materialUnitPrice = unitPrice,
             chargeLines = chargeLines,
             subtotal = subtotal,
             afterExtraFee = afterExtraFee,
@@ -165,9 +182,20 @@ class CalculateQuoteUseCase @Inject constructor() {
             finalAmount = finalAmount,
             specialFeesSum = specialFeesSum,
             markupTotal = markupTotal,
-            totalWeight = totalWeight
+            totalWeight = totalWeight,
+            materialCost = materialCost,
+            basicProcessCost = basicProcessCost,
+            printProcessCost = printProcessCost
         )
     }
+
+    /**
+     * 阶梯计价：数量不超过阈值时取最低收费，否则按单价 × 数量。
+     * 边界是「≤」（含等号），与 Web 端 buildTieredChargeLine / calcTieredFee 一致 ——
+     * 原来这里写的是「<」，数量正好卡在阈值上时会算出不同的价格。
+     */
+    private fun tieredFee(qty: Int, minQuantity: Int, minFee: Double, unitPrice: Double): Double =
+        if (minFee > 0 && qty <= minQuantity) minFee else unitPrice * qty
 
     private fun calculateLayouts(l: Double, w: Double, h: Double): Map<LayoutKey, LayoutResult> {
         // 移植自 Web 端 calculateLayouts 函数
