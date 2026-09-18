@@ -1,8 +1,10 @@
 package com.paperbox.app.ui.quote
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,8 +33,8 @@ import com.paperbox.app.domain.model.SpotMatch
 /**
  * 📦 现货匹配卡片。
  *
- * 卡片开关只管折叠卡片内容 —— 现货匹配从来不参与报价计算（Web 端也一样）。
- * 「现货计价」是跳去规格页的入口。
+ * 卡片开关打开后进入现货计价模式：双击下方匹配结果中的某个尺寸，
+ * 该尺寸的价格直接作为计价单价。
  */
 @Composable
 internal fun SpotMatchCard(
@@ -41,7 +43,8 @@ internal fun SpotMatchCard(
     onToleranceChange: (Double) -> Unit,
     onToleranceCommit: () -> Unit,
     onSelectCategory: (String) -> Unit,
-    onOpenSizeGuide: () -> Unit
+    onOpenSizeGuide: () -> Unit,
+    onSelectSpot: (SpotMatch) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -89,14 +92,13 @@ internal fun SpotMatchCard(
             }
         }
 
-        if (state.spotMatchEnabled) {
-            SpotMatchBody(
-                state = state,
-                onToleranceChange = onToleranceChange,
-                onToleranceCommit = onToleranceCommit,
-                onSelectCategory = onSelectCategory
-            )
-        }
+        SpotMatchBody(
+            state = state,
+            onToleranceChange = onToleranceChange,
+            onToleranceCommit = onToleranceCommit,
+            onSelectCategory = onSelectCategory,
+            onSelectSpot = onSelectSpot
+        )
     }
 }
 
@@ -105,7 +107,8 @@ private fun SpotMatchBody(
     state: QuoteUiState,
     onToleranceChange: (Double) -> Unit,
     onToleranceCommit: () -> Unit,
-    onSelectCategory: (String) -> Unit
+    onSelectCategory: (String) -> Unit,
+    onSelectSpot: (SpotMatch) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -183,22 +186,48 @@ private fun SpotMatchBody(
                     state.spotMatches.isEmpty() ->
                         Text("没有匹配的现货尺寸，可以试试放宽容差", fontSize = 12.sp, color = QuoteMuted)
 
-                    else -> state.spotMatches.forEach { match ->
-                        SpotResultRow(match)
+                    else -> {
+                        if (state.spotMatchEnabled) {
+                            Text(
+                                "双击尺寸可直接按现货价格计价",
+                                fontSize = 11.sp,
+                                color = QuoteMuted
+                            )
+                        }
+                        state.spotMatches.forEach { match ->
+                            SpotResultRow(
+                                match = match,
+                                isSelected = match.size == state.selectedSpotProduct?.size,
+                                onDoubleClick = { onSelectSpot(match) }
+                            )
+                        }
                     }
                 }
             }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SpotResultRow(match: SpotMatch) {
+private fun SpotResultRow(
+    match: SpotMatch,
+    isSelected: Boolean,
+    onDoubleClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(QuoteRowBg)
-            .border(1.dp, QuoteCardStroke, RoundedCornerShape(10.dp))
+            .background(if (isSelected) QuoteGreen.copy(alpha = 0.08f) else QuoteRowBg)
+            .border(
+                width = 1.dp,
+                color = if (isSelected) QuoteGreen else QuoteCardStroke,
+                shape = RoundedCornerShape(10.dp)
+            )
+            .combinedClickable(
+                onClick = {},
+                onDoubleClick = onDoubleClick
+            )
             .padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -207,7 +236,7 @@ private fun SpotResultRow(match: SpotMatch) {
             text = match.size.replace('x', '×').replace('X', '×').replace('*', '×'),
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
-            color = QuoteTitle,
+            color = if (isSelected) QuoteGreen else QuoteTitle,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
@@ -216,7 +245,7 @@ private fun SpotResultRow(match: SpotMatch) {
             text = money(match.price),
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
-            color = QuotePrice
+            color = if (isSelected) QuoteGreen else QuotePrice
         )
     }
 }

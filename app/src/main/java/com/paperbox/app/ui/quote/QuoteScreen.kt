@@ -131,7 +131,8 @@ fun QuoteScreen(
                 onToleranceChange = viewModel::setSpotTolerance,
                 onToleranceCommit = viewModel::commitSpotTolerance,
                 onSelectCategory = viewModel::selectSpotCategory,
-                onOpenSizeGuide = onOpenSizeGuide
+                onOpenSizeGuide = onOpenSizeGuide,
+                onSelectSpot = viewModel::selectSpotProduct
             )
 
             // 给浮动按钮留出位置

@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
+import kotlin.math.roundToInt
 
 /**
  * 输入框里的原始文本单独存一份 —— 不能只存解析后的 Double，
@@ -37,21 +38,22 @@ data class QuoteUiState(
     val result: QuoteComputation? = null,
     val materialConfigs: List<MaterialConfig> = CalculateQuoteUseCase.DEFAULT_MATERIALS,
     val spotProducts: List<SpotProduct> = emptyList(),
-    val spotMatchEnabled: Boolean = true,
+    val spotMatchEnabled: Boolean = false,
     val spotTolerance: Double = DEFAULT_TOLERANCE,
     val spotCategory: String = "kraft",
     val spotCounts: Map<String, Int> = emptyMap(),
     val spotMatches: List<SpotMatch> = emptyList(),
+    val selectedSpotProduct: SpotMatch? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val traceCode: String? = null
 ) {
     companion object {
         /** 匹配容差的默认值，同时是滑块的起始位置 */
-        const val DEFAULT_TOLERANCE = 10.0
-        /** 滑块量程（cm）——按设计稿 ±10cm 的滑块位置反推出来的 */
+        const val DEFAULT_TOLERANCE = 5.0
+        /** 滑块量程（cm）——最大 10cm，步进 1cm */
         const val MIN_TOLERANCE = 0.0
-        const val MAX_TOLERANCE = 40.0
+        const val MAX_TOLERANCE = 10.0
     }
 }
 
@@ -97,10 +99,7 @@ class QuoteViewModel @Inject constructor(
                 val spots = apiService.getSpotProducts()
                 if (spots.isSuccessful) {
                     val products = spots.body()!!
-                    _uiState.value = _uiState.value.copy(
-                        spotProducts = products,
-                        spotCounts = matchSpotProducts.countByCategory(products)
-                    )
+                    _uiState.value = _uiState.value.copy(spotProducts = products)
                 }
             } catch (_: Exception) {
                 // 现货可用性不影响报价
@@ -174,7 +173,8 @@ class QuoteViewModel @Inject constructor(
         val s = _uiState.value
         _uiState.value = s.copy(
             form = s.form.copy(length = text.toDoubleOrNull() ?: 0.0),
-            lengthText = text
+            lengthText = text,
+            selectedSpotProduct = null  // 手动改尺寸，清除现货选中
         )
         recalculate()
         rematch()
@@ -185,7 +185,8 @@ class QuoteViewModel @Inject constructor(
         val s = _uiState.value
         _uiState.value = s.copy(
             form = s.form.copy(width = text.toDoubleOrNull() ?: 0.0),
-            widthText = text
+            widthText = text,
+            selectedSpotProduct = null
         )
         recalculate()
         rematch()
@@ -196,7 +197,8 @@ class QuoteViewModel @Inject constructor(
         val s = _uiState.value
         _uiState.value = s.copy(
             form = s.form.copy(height = text.toDoubleOrNull() ?: 0.0),
-            heightText = text
+            heightText = text,
+            selectedSpotProduct = null
         )
         recalculate()
         rematch()
@@ -342,15 +344,45 @@ class QuoteViewModel @Inject constructor(
 
     // ── 现货匹配 ──
 
-    fun setSpotMatchEnabled(enabled: Boolean) {
-        _uiState.value = _uiState.value.copy(spotMatchEnabled = enabled)
+    /**
+     * 双击匹配结果中的某个尺寸 → 用该现货的价格和尺寸来计价。
+     * 自动打开现货计价开关，用现货尺寸填充表单。
+     */
+    fun selectSpotProduct(match: SpotMatch) {
+        // 解析现货尺寸填入表单
+        val parsed = MatchSpotProductsUseCase.parseSize(match.size)
+        val (l, w, h) = parsed ?: Triple(0.0, 0.0, 0.0)
+
+        _uiState.value = _uiState.value.copy(
+            selectedSpotProduct = match,
+            spotMatchEnabled = true,
+            form = _uiState.value.form.copy(length = l, width = w, height = h),
+            lengthText = trimNumber(l),
+            widthText = trimNumber(w),
+            heightText = trimNumber(h)
+        )
+        recalculate()
+        rematch()
     }
 
-    /** 拖动过程中只更新数值，别每帧都跑一遍匹配 */
-    fun setSpotTolerance(tolerance: Double) {
+    fun clearSpotSelection() {
+        _uiState.value = _uiState.value.copy(selectedSpotProduct = null)
+        recalculate()
+    }
+
+    fun setSpotMatchEnabled(enabled: Boolean) {
         _uiState.value = _uiState.value.copy(
-            spotTolerance = tolerance.coerceIn(QuoteUiState.MIN_TOLERANCE, QuoteUiState.MAX_TOLERANCE)
+            spotMatchEnabled = enabled,
+            selectedSpotProduct = if (!enabled) null else _uiState.value.selectedSpotProduct
         )
+        if (!enabled) recalculate()
+    }
+
+    /** 拖动过程中只更新数值，别每帧都跑一遍匹配；步进 1cm */
+    fun setSpotTolerance(tolerance: Double) {
+        val snapped = (tolerance / 1.0).roundToInt().toDouble()
+            .coerceIn(QuoteUiState.MIN_TOLERANCE, QuoteUiState.MAX_TOLERANCE)
+        _uiState.value = _uiState.value.copy(spotTolerance = snapped)
     }
 
     /** 松手时才真正重算匹配结果 */
@@ -369,16 +401,30 @@ class QuoteViewModel @Inject constructor(
             w = state.form.width,
             h = state.form.height,
             tolerance = state.spotTolerance,
-            category = state.spotCategory
+            category = null  // 匹配全部分类，用于统计各分类数量
         )
-        _uiState.value = state.copy(spotMatches = matches)
+        // tab 计数：从匹配结果按分类统计真实数量
+        val counts = matches.groupingBy { it.category }.eachCount()
+        // 当前选中分类的匹配结果
+        val filtered = if (state.spotCategory == "all") matches
+        else matches.filter { it.category == state.spotCategory }
+        _uiState.value = state.copy(
+            spotCounts = counts,
+            spotMatches = filtered
+        )
     }
 
     // ── 计算 / 保存 ──
 
     fun recalculate() {
         val state = _uiState.value
-        _uiState.value = state.copy(result = calculateQuote.calculate(state.form, state.materialConfigs))
+        _uiState.value = state.copy(
+            result = calculateQuote.calculate(
+                state.form,
+                state.materialConfigs,
+                state.selectedSpotProduct
+            )
+        )
     }
 
     fun saveQuoteRecord() {
@@ -451,10 +497,11 @@ class QuoteViewModel @Inject constructor(
             result = null,
             traceCode = null,
             errorMessage = null,
-            spotMatchEnabled = true,
+            spotMatchEnabled = false,
             spotTolerance = QuoteUiState.DEFAULT_TOLERANCE,
             spotCategory = "kraft",
-            spotMatches = emptyList()
+            spotMatches = emptyList(),
+            selectedSpotProduct = null
         )
         recalculate()
         rematch()

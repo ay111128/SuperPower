@@ -1,12 +1,17 @@
 package com.paperbox.app.domain.usecase
 
 import com.paperbox.app.domain.model.*
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
 
 /**
  * 报价计算核心逻辑 —— 移植自 Web 端 src/utils/quote.ts
+ *
+ * 支持两种计价模式：
+ * - 普通模式：按展开面积 × 材质单价 + 工艺费
+ * - 现货模式：直接使用现货产品价格 × 数量
  */
 @Singleton
 class CalculateQuoteUseCase @Inject constructor() {
@@ -23,7 +28,8 @@ class CalculateQuoteUseCase @Inject constructor() {
 
     fun calculate(
         form: QuoteFormValues,
-        materialConfigs: List<MaterialConfig> = DEFAULT_MATERIALS
+        materialConfigs: List<MaterialConfig> = DEFAULT_MATERIALS,
+        selectedSpot: SpotMatch? = null
     ): QuoteComputation? {
         val l = form.length
         val w = form.width
@@ -31,12 +37,6 @@ class CalculateQuoteUseCase @Inject constructor() {
         val qty = form.orderQuantity
 
         if (l <= 0 || w <= 0 || h <= 0 || qty <= 0) return null
-
-        val material = materialConfigs.find { it.key == form.materialKey }
-            ?: DEFAULT_MATERIALS.first { it.key == form.materialKey }
-
-        // 获取用户覆盖的单价，否则用预设
-        val unitPrice = form.materialUnitPrices[material.key] ?: material.unitPrice
 
         // 1. 计算所有排版方案
         val layouts = calculateLayouts(l, w, h)
@@ -51,17 +51,39 @@ class CalculateQuoteUseCase @Inject constructor() {
         }
         val areaM2 = (selectedLayout.width * selectedLayout.height) / 10000.0 / layoutCount
 
-        // 3. 克重
+        // 3. 材质（现货模式下不使用，但克重计算需要）
+        val material = materialConfigs.find { it.key == form.materialKey }
+            ?: DEFAULT_MATERIALS.first { it.key == form.materialKey }
+        val unitPrice = form.materialUnitPrices[material.key] ?: material.unitPrice
+
+        // 4. 克重
         val unitWeight = areaM2 * material.weightFactor + material.weightOffset
         val totalWeight = unitWeight * qty
 
-        // 4. 费用明细
+        // ── 材料成本 ──
+        val materialCost: Double
+        val materialLabel: String
+        val materialUnitPrice: Double
+        val materialChargeLine: ChargeLine
+
+        if (selectedSpot != null) {
+            // 现货模式：现货价格作为材料成本
+            materialCost = selectedSpot.price * qty
+            materialLabel = "现货（${selectedSpot.size}）"
+            materialUnitPrice = selectedSpot.price
+            val spotPriceStr = String.format(Locale.CHINA, "%.2f", selectedSpot.price)
+            materialChargeLine = ChargeLine("现货价格", materialCost, "$spotPriceStr 元/个 × $qty 个")
+        } else {
+            // 普通模式：按面积计算材料成本
+            materialCost = unitPrice * areaM2 * qty
+            materialLabel = material.label
+            materialUnitPrice = unitPrice
+            materialChargeLine = ChargeLine("材料费", materialCost, "${unitPrice}元/m² × ${String.format("%.4f", areaM2)}m² × $qty")
+        }
+
+        // 5. 费用明细（工艺费 + 物流费）
         val chargeLines = mutableListOf<ChargeLine>()
         val sidedMultiplier = if (form.processes.sidedType == SidedType.DOUBLE) 2.0 else 1.0
-
-        // 材料成本
-        val materialCost = unitPrice * areaM2 * qty
-        chargeLines.add(ChargeLine("材料费", materialCost, "${unitPrice}元/m² × ${String.format("%.4f", areaM2)}m² × $qty"))
 
         // ═══ 印刷定制 ═══
         var printProcessCost = 0.0
@@ -126,37 +148,39 @@ class CalculateQuoteUseCase @Inject constructor() {
             basicProcessCost += form.processes.toolingFee
         }
 
-        // 杂费 —— Web 端按订单数量计（buildUnitChargeLine 传的是 orderQuantity），
-        // 不是按 processes.miscQuantity，别改回去
+        // 杂费
         if (form.processes.miscEnabled && form.processes.miscPerUnit > 0) {
             val cost = form.processes.miscPerUnit * qty
             chargeLines.add(ChargeLine("杂费", cost))
             basicProcessCost += cost
         }
 
-        // 工厂加价归入基础选项（设计稿里它是基础选项的第 3 项）
+        // 工厂加价归入基础选项
         if (form.extraFeeEnabled && form.extraFee > 0) {
             basicProcessCost += form.extraFee
         }
 
-        // 5. 物流费 —— 必须在算 subtotal 之前加进 chargeLines，
-        // Web 端它就是 baseChargeLines 的一项
+        // 物流费
         if (form.processes.logisticsEnabled && form.processes.logisticsFee > 0) {
             chargeLines.add(ChargeLine("物流费", form.processes.logisticsFee))
         }
 
-        val subtotal = chargeLines.sumOf { it.amount }
+        // ── 汇总 ──
+        val processTotal = chargeLines.sumOf { it.amount }
 
-        // 6. 加价（工厂附加费）
+        // 小计 = 材料费 + 工艺费
+        val subtotal = materialCost + processTotal
+
+        // 工厂加价
         val afterExtraFee = if (form.extraFeeEnabled) subtotal + form.extraFee else subtotal
 
-        // 7. 利润
+        // 利润
         val profit = when (form.profitMode) {
             ProfitMode.PERCENTAGE -> afterExtraFee * form.profitPercentage / 100.0
             ProfitMode.AMOUNT -> form.profitAmount
         }
 
-        // 8. 特殊费用
+        // 特殊费用
         val specialFeesSum = form.specialFees
             .filter { it.enabled }
             .sumOf { fee ->
@@ -167,21 +191,23 @@ class CalculateQuoteUseCase @Inject constructor() {
             }
 
         val finalAmount = afterExtraFee + profit + specialFeesSum
-        val markupTotal = subtotal * form.markupRate
+
+        // 费用明细 = 材料费 + 工艺费（chargeLines 前面只加了工艺费，材料费单独放）
+        val allChargeLines = listOf(materialChargeLine) + chargeLines
 
         return QuoteComputation(
             layouts = layouts,
             areaM2 = areaM2,
-            materialLabel = material.label,
+            materialLabel = materialLabel,
             materialKey = material.key,
-            materialUnitPrice = unitPrice,
-            chargeLines = chargeLines,
+            materialUnitPrice = materialUnitPrice,
+            chargeLines = allChargeLines,
             subtotal = subtotal,
             afterExtraFee = afterExtraFee,
             profitAmount = profit,
             finalAmount = finalAmount,
             specialFeesSum = specialFeesSum,
-            markupTotal = markupTotal,
+            markupTotal = processTotal * form.markupRate,
             totalWeight = totalWeight,
             materialCost = materialCost,
             basicProcessCost = basicProcessCost,

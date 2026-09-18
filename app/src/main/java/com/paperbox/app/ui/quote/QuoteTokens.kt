@@ -89,7 +89,7 @@ internal val MaterialChipOptions = listOf(
     MaterialChipOption(MaterialKey.KRAFT_SMALL, "牛皮纸1", Color(0xFFC4956A)),
     MaterialChipOption(MaterialKey.KRAFT_LARGE, "牛皮纸2", Color(0xFFA87850)),
     MaterialChipOption(MaterialKey.WHITE_KRAFT, "白牛皮", Color(0xFFE8E8E8)),
-    MaterialChipOption(MaterialKey.WHITE_CARD, "白卡", Color(0xFFF5F0E8))
+    MaterialChipOption(MaterialKey.WHITE_CARD, "白卡纸", Color(0xFFF5F0E8))
 )
 
 internal data class SpotTabOption(

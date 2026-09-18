@@ -158,6 +158,8 @@ internal fun QuoteResultPage(
 
 @Composable
 private fun QuoteSummaryCard(state: QuoteUiState, result: QuoteComputation) {
+    val isSpotMode = state.selectedSpotProduct != null
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -176,20 +178,40 @@ private fun QuoteSummaryCard(state: QuoteUiState, result: QuoteComputation) {
             color = QuoteTitle
         )
 
-        val rows = listOf(
-            "数量" to "${state.form.orderQuantity} 个",
-            "材质" to result.materialLabel,
-            "单价" to "${moneyPlain(result.materialUnitPrice)} 元/m²",
-            "加工面积" to "${num(result.areaM2, 4)} m²",
-            "总重" to "${num(result.totalWeight, 2)} kg"
-        )
-        rows.forEach { (label, value) ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(label, fontSize = 13.sp, color = QuoteMuted)
-                Text(value, fontSize = 13.sp, color = QuoteTitle, fontWeight = FontWeight.Medium)
+        if (isSpotMode) {
+            // 现货模式：显示现货信息 + 加工面积（工艺费需要）
+            val rows = listOf(
+                "数量" to "${state.form.orderQuantity} 个",
+                "来源" to "现货",
+                "单价" to "${moneyPlain(result.materialUnitPrice)} 元/个",
+                "加工面积" to "${num(result.areaM2, 4)} m²"
+            )
+            rows.forEach { (label, value) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(label, fontSize = 13.sp, color = QuoteMuted)
+                    Text(value, fontSize = 13.sp, color = QuoteTitle, fontWeight = FontWeight.Medium)
+                }
+            }
+        } else {
+            // 普通模式：面积计价
+            val rows = listOf(
+                "数量" to "${state.form.orderQuantity} 个",
+                "材质" to result.materialLabel,
+                "单价" to "${moneyPlain(result.materialUnitPrice)} 元/m²",
+                "加工面积" to "${num(result.areaM2, 4)} m²",
+                "总重" to "${num(result.totalWeight, 2)} kg"
+            )
+            rows.forEach { (label, value) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(label, fontSize = 13.sp, color = QuoteMuted)
+                    Text(value, fontSize = 13.sp, color = QuoteTitle, fontWeight = FontWeight.Medium)
+                }
             }
         }
     }

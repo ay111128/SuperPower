@@ -86,7 +86,7 @@ internal fun QuoteProcessSummaryRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("工艺：", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = QuoteAccent)
+            Text("工艺：", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = QuoteAccent)
             Text(
                 text = summary + layoutSuffix,
                 fontSize = 12.sp,
@@ -165,7 +165,10 @@ internal fun QuoteProcessGroups(state: QuoteUiState, vm: QuoteViewModel) {
     ) {
         ProcessGroup(
             title = "基础选项",
+            treePrefix = "├─",
+            childPrefix = "│  ",
             rows = basicRows,
+            defaultExpanded = false,
             masterChecked = basicRows.any { it.enabled },
             onToggleMaster = { vm.setBasicGroupEnabled(it) },
             onToggleRow = { row, on ->
@@ -176,7 +179,10 @@ internal fun QuoteProcessGroups(state: QuoteUiState, vm: QuoteViewModel) {
 
         ProcessGroup(
             title = "印刷定制",
+            treePrefix = "└─",
+            childPrefix = "   ",
             rows = printRows,
+            defaultExpanded = true,
             masterChecked = printRows.any { it.enabled },
             onToggleMaster = { vm.setPrintGroupEnabled(it) },
             onToggleRow = { row, on -> row.field?.let { vm.setProcessEnabled(it, on) } }
@@ -185,18 +191,21 @@ internal fun QuoteProcessGroups(state: QuoteUiState, vm: QuoteViewModel) {
 }
 
 /**
- * 一组工艺：标题行（标题 + 展开箭头 + 总开关）+ 折叠起来的子项。
- * 设计稿里子项标签带树形前缀，最后一项用 └─，其余用 ├─。
+ * 一组工艺：标题行（树形前缀 + 标题 + 展开箭头 + 总开关）+ 折叠起来的子项。
+ * 子项标签带树形前缀，最后一项用 └─，其余用 ├─。
  */
 @Composable
 private fun ProcessGroup(
     title: String,
+    treePrefix: String = "",
+    childPrefix: String = "",
     rows: List<ProcessRow>,
+    defaultExpanded: Boolean = true,
     masterChecked: Boolean,
     onToggleMaster: (Boolean) -> Unit,
     onToggleRow: (ProcessRow, Boolean) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(true) }
+    var expanded by remember { mutableStateOf(defaultExpanded) }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -218,6 +227,9 @@ private fun ProcessGroup(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (treePrefix.isNotEmpty()) {
+                    Text(treePrefix, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = QuoteGray55)
+                }
                 Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = QuoteGray55)
                 Icon(
                     Icons.Default.KeyboardArrowDown,
@@ -233,7 +245,7 @@ private fun ProcessGroup(
             rows.forEachIndexed { index, row ->
                 val branch = if (index == rows.lastIndex) "└─" else "├─"
                 ProcessOptionRow(
-                    label = "$branch ${row.label}（${row.hint}）",
+                    label = "$childPrefix$branch ${row.label}（${row.hint}）",
                     checked = row.enabled,
                     onCheckedChange = { onToggleRow(row, it) }
                 )
@@ -253,7 +265,7 @@ private fun ProcessOptionRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(QuoteRowBg)
-            .padding(horizontal = 30.dp, vertical = 10.dp),
+            .padding(horizontal = 36.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -298,26 +310,20 @@ internal fun QuoteSpecialFeeSection(state: QuoteUiState, vm: QuoteViewModel) {
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(3.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 32.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(QuoteRowBg)
-                .padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("附加费：", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = QuoteAccent)
+            Text("附加费：", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = QuoteAccent)
             Text(
                 text = summary,
                 fontSize = 12.sp,
                 color = QuoteMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f, fill = false)
             )
         }
 
@@ -327,7 +333,6 @@ internal fun QuoteSpecialFeeSection(state: QuoteUiState, vm: QuoteViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
-                    .background(QuoteRowBg)
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically

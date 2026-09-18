@@ -200,7 +200,7 @@ internal fun QuoteMaterialSection(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("材质：", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = QuoteAccent)
+            Text("材质：", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = QuoteAccent)
             Text(
                 text = description,
                 fontSize = 12.sp,
@@ -213,7 +213,7 @@ internal fun QuoteMaterialSection(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             MaterialChipOptions.forEach { option ->

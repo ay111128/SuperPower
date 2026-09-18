@@ -78,16 +78,16 @@ data class ProcessValues(
     val mountingEnabled: Boolean = false,
     val mountingUnitPrice: Double = 0.25,
     // 模切费
-    val dieCutEnabled: Boolean = false,
+    val dieCutEnabled: Boolean = true,
     val dieCutMinFee: Double = 200.0,
     val dieCutMinQuantity: Int = 2000,
     val dieCutUnitPrice: Double = 0.1,
     // 刀模费
-    val toolingEnabled: Boolean = false,
+    val toolingEnabled: Boolean = true,
     val toolingFee: Double = 200.0,
     // 杂费 —— 计费数量取订单数量（Web 端 buildUnitChargeLine 传的就是 orderQuantity），
     // 这个字段只在 Web 的类型里留着，实际不参与计算
-    val miscEnabled: Boolean = false,
+    val miscEnabled: Boolean = true,
     val miscPerUnit: Double = 0.045,
     val miscQuantity: Int = 100,
     // 单双面
@@ -126,7 +126,7 @@ data class QuoteFormValues(
     val width: Double = 0.0,
     val height: Double = 0.0,
     val orderQuantity: Int = 0,
-    val extraFeeEnabled: Boolean = false,
+    val extraFeeEnabled: Boolean = true,
     val extraFee: Double = 300.0,
     val markupRate: Double = 1.05,
     val profitMode: ProfitMode = ProfitMode.PERCENTAGE,
@@ -185,5 +185,6 @@ data class SpotMatch(
     val weight: Double,
     val score: Int,
     val exact: Boolean,
-    val totalDiff: Double
+    val totalDiff: Double,
+    val selected: Boolean = false
 )
