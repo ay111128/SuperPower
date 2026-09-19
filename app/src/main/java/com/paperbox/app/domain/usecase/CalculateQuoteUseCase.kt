@@ -83,14 +83,14 @@ class CalculateQuoteUseCase @Inject constructor() {
 
         // 5. 费用明细（工艺费 + 物流费）
         val chargeLines = mutableListOf<ChargeLine>()
-        val sidedMultiplier = if (form.processes.sidedType == SidedType.DOUBLE) 2.0 else 1.0
 
         // ═══ 印刷定制 ═══
         var printProcessCost = 0.0
 
-        // 满印油墨
+        // 满印油墨（按单双面计算）
         if (form.processes.fullPrintEnabled && form.processes.fullPrintUnitPrice > 0) {
-            val cost = form.processes.fullPrintUnitPrice * areaM2 * sidedMultiplier * qty
+            val multiplier = if (form.processes.fullPrintSided == SidedType.DOUBLE) 2.0 else 1.0
+            val cost = form.processes.fullPrintUnitPrice * areaM2 * multiplier * qty
             chargeLines.add(ChargeLine("满印油墨", cost))
             printProcessCost += cost
         }
@@ -115,16 +115,18 @@ class CalculateQuoteUseCase @Inject constructor() {
             printProcessCost += cost
         }
 
-        // 覆膜
+        // 覆膜（按单双面计算）
         if (form.processes.laminationEnabled && form.processes.laminationUnitPrice > 0) {
-            val cost = form.processes.laminationUnitPrice * areaM2 * sidedMultiplier * qty
+            val multiplier = if (form.processes.laminationSided == SidedType.DOUBLE) 2.0 else 1.0
+            val cost = form.processes.laminationUnitPrice * areaM2 * multiplier * qty
             chargeLines.add(ChargeLine("覆膜", cost))
             printProcessCost += cost
         }
 
-        // 裱纸
+        // 裱纸（按单双面计算）
         if (form.processes.mountingEnabled && form.processes.mountingUnitPrice > 0) {
-            val cost = form.processes.mountingUnitPrice * areaM2 * sidedMultiplier * qty
+            val multiplier = if (form.processes.mountingSided == SidedType.DOUBLE) 2.0 else 1.0
+            val cost = form.processes.mountingUnitPrice * areaM2 * multiplier * qty
             chargeLines.add(ChargeLine("裱纸", cost))
             printProcessCost += cost
         }

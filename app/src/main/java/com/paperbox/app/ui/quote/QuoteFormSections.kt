@@ -213,7 +213,7 @@ internal fun QuoteMaterialSection(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically
         ) {
             MaterialChipOptions.forEach { option ->
@@ -223,7 +223,7 @@ internal fun QuoteMaterialSection(
                         .clip(RoundedCornerShape(8.dp))
                         .background(if (selected) QuoteGreen else QuoteTabIdleBg)
                         .clickable { onSelect(option.key) }
-                        .padding(horizontal = 5.dp, vertical = 6.dp),
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

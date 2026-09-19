@@ -60,6 +60,7 @@ enum class PricingType {
 data class ProcessValues(
     // 满印油墨
     val fullPrintEnabled: Boolean = false,
+    val fullPrintSided: SidedType = SidedType.SINGLE,
     val fullPrintUnitPrice: Double = 0.5,
     // 印刷费
     val printingEnabled: Boolean = false,
@@ -73,9 +74,11 @@ data class ProcessValues(
     val screenPrintUnitPrice: Double = 0.3,
     // 覆膜
     val laminationEnabled: Boolean = false,
+    val laminationSided: SidedType = SidedType.SINGLE,
     val laminationUnitPrice: Double = 0.4,
     // 裱纸
     val mountingEnabled: Boolean = false,
+    val mountingSided: SidedType = SidedType.SINGLE,
     val mountingUnitPrice: Double = 0.25,
     // 模切费
     val dieCutEnabled: Boolean = true,
@@ -90,8 +93,6 @@ data class ProcessValues(
     val miscEnabled: Boolean = true,
     val miscPerUnit: Double = 0.045,
     val miscQuantity: Int = 100,
-    // 单双面
-    val sidedType: SidedType = SidedType.SINGLE,
     // 物流
     val logisticsEnabled: Boolean = false,
     val logisticsFee: Double = 0.0

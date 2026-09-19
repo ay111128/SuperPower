@@ -1,12 +1,14 @@
 package com.paperbox.app.ui.quote
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -38,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.KeyboardOptions
 import com.paperbox.app.domain.model.LayoutKey
+import com.paperbox.app.domain.model.SidedType
 import com.paperbox.app.domain.model.SpecialFee
 
 /** 附加费金额输入框允许的中间态（含空串和小数点） */
@@ -135,7 +138,10 @@ private data class ProcessRow(
     val enabled: Boolean,
     /** 工厂加价走 extraFee 字段，不在 ProcessValues 里，得单独认出来 */
     val extra: Boolean = false,
-    val field: ProcessField? = null
+    val field: ProcessField? = null,
+    /** 满印/覆膜/裱纸的单双面，null 表示不显示单双选择器 */
+    val sided: SidedType? = null,
+    val onSidedChange: ((SidedType) -> Unit)? = null
 )
 
 @Composable
@@ -152,9 +158,12 @@ internal fun QuoteProcessGroups(state: QuoteUiState, vm: QuoteViewModel) {
     )
 
     val printRows = listOf(
-        ProcessRow("满印油墨", "${trimNumber(p.fullPrintUnitPrice)} 元/方", p.fullPrintEnabled, field = ProcessField.FULL_PRINT),
-        ProcessRow("覆膜", "${trimNumber(p.laminationUnitPrice)} 元/方", p.laminationEnabled, field = ProcessField.LAMINATION),
-        ProcessRow("裱纸", "${trimNumber(p.mountingUnitPrice)} 元/方", p.mountingEnabled, field = ProcessField.MOUNTING),
+        ProcessRow("满印油墨", "${trimNumber(p.fullPrintUnitPrice)} 元/方", p.fullPrintEnabled, field = ProcessField.FULL_PRINT,
+            sided = p.fullPrintSided, onSidedChange = { vm.setProcessSided(ProcessField.FULL_PRINT, it) }),
+        ProcessRow("覆膜", "${trimNumber(p.laminationUnitPrice)} 元/方", p.laminationEnabled, field = ProcessField.LAMINATION,
+            sided = p.laminationSided, onSidedChange = { vm.setProcessSided(ProcessField.LAMINATION, it) }),
+        ProcessRow("裱纸", "${trimNumber(p.mountingUnitPrice)} 元/方", p.mountingEnabled, field = ProcessField.MOUNTING,
+            sided = p.mountingSided, onSidedChange = { vm.setProcessSided(ProcessField.MOUNTING, it) }),
         ProcessRow("印刷费", tieredHint(qty, p.printingMinQuantity, p.printingMinFee, p.printingUnitPrice, "张"), p.printingEnabled, field = ProcessField.PRINTING),
         ProcessRow("丝印费", tieredHint(qty, p.screenPrintMinQuantity, p.screenPrintMinFee, p.screenPrintUnitPrice, "个"), p.screenPrintEnabled, field = ProcessField.SCREEN_PRINT)
     )
@@ -166,7 +175,6 @@ internal fun QuoteProcessGroups(state: QuoteUiState, vm: QuoteViewModel) {
         ProcessGroup(
             title = "基础选项",
             treePrefix = "├─",
-            childPrefix = "│  ",
             rows = basicRows,
             defaultExpanded = false,
             masterChecked = basicRows.any { it.enabled },
@@ -180,7 +188,6 @@ internal fun QuoteProcessGroups(state: QuoteUiState, vm: QuoteViewModel) {
         ProcessGroup(
             title = "印刷定制",
             treePrefix = "└─",
-            childPrefix = "   ",
             rows = printRows,
             defaultExpanded = true,
             masterChecked = printRows.any { it.enabled },
@@ -198,7 +205,6 @@ internal fun QuoteProcessGroups(state: QuoteUiState, vm: QuoteViewModel) {
 private fun ProcessGroup(
     title: String,
     treePrefix: String = "",
-    childPrefix: String = "",
     rows: List<ProcessRow>,
     defaultExpanded: Boolean = true,
     masterChecked: Boolean,
@@ -245,9 +251,11 @@ private fun ProcessGroup(
             rows.forEachIndexed { index, row ->
                 val branch = if (index == rows.lastIndex) "└─" else "├─"
                 ProcessOptionRow(
-                    label = "$childPrefix$branch ${row.label}（${row.hint}）",
+                    label = "$branch ${row.label}（${row.hint}）",
                     checked = row.enabled,
-                    onCheckedChange = { onToggleRow(row, it) }
+                    onCheckedChange = { onToggleRow(row, it) },
+                    sided = row.sided,
+                    onSidedChange = row.onSidedChange
                 )
             }
         }
@@ -258,7 +266,9 @@ private fun ProcessGroup(
 private fun ProcessOptionRow(
     label: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    sided: SidedType? = null,
+    onSidedChange: ((SidedType) -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
@@ -266,7 +276,6 @@ private fun ProcessOptionRow(
             .clip(RoundedCornerShape(8.dp))
             .background(QuoteRowBg)
             .padding(horizontal = 36.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -278,8 +287,65 @@ private fun ProcessOptionRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
+        // 单双面选择器（满印/覆膜/裱纸）
+        if (sided != null && onSidedChange != null) {
+            SidedToggle(
+                sided = sided,
+                onSidedChange = onSidedChange,
+                modifier = Modifier.padding(start = 6.dp)
+            )
+        }
         Box(modifier = Modifier.padding(start = 8.dp)) {
             QuoteToggle(checked = checked, onCheckedChange = onCheckedChange)
+        }
+    }
+}
+
+/**
+ * 紧凑的单/双面选择器：「单」和「双」两个字并排，点击切换。
+ */
+@Composable
+private fun SidedToggle(
+    sided: SidedType,
+    onSidedChange: (SidedType) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .height(22.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .border(1.dp, QuoteFieldStroke, RoundedCornerShape(6.dp)),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 22.dp, height = 22.dp)
+                .clip(RoundedCornerShape(start = 5.dp))
+                .background(if (sided == SidedType.SINGLE) QuoteGreen else Color.Transparent)
+                .clickable { onSidedChange(SidedType.SINGLE) },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "单",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (sided == SidedType.SINGLE) Color.White else QuoteGray66
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(width = 22.dp, height = 22.dp)
+                .clip(RoundedCornerShape(end = 5.dp))
+                .background(if (sided == SidedType.DOUBLE) QuoteGreen else Color.Transparent)
+                .clickable { onSidedChange(SidedType.DOUBLE) },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "双",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (sided == SidedType.DOUBLE) Color.White else QuoteGray66
+            )
         }
     }
 }

@@ -1,8 +1,16 @@
 package com.paperbox.app.ui.quote
 
+import android.content.ContentValues
+import android.graphics.Bitmap
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +24,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,15 +35,29 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.paperbox.app.domain.model.ChargeLine
 import com.paperbox.app.domain.model.QuoteComputation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * 报价结果页 —— 由浮动按钮「生成报价」推入的独立整页（不是弹窗）。
@@ -81,6 +104,7 @@ internal fun QuoteResultPage(
                 .padding(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            QuoteDocumentSection(state, result)
             QuoteSummaryCard(state, result)
             QuoteBreakdownCard(state, result)
 
@@ -301,6 +325,221 @@ private fun QuoteLineRow(line: ChargeLine) {
         }
         if (line.detail.isNotEmpty()) {
             Text(line.detail, fontSize = 11.sp, color = QuoteMuted)
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  报价单文档区域
+// ══════════════════════════════════════════════════════════════
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation) {
+    val now = Date()
+    val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
+    val timeFormat = SimpleDateFormat("HH:mm", Locale.CHINA)
+    val enabledFees = state.form.specialFees.filter { it.enabled }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val graphicsLayer = rememberGraphicsLayer()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer(graphicsLayer)
+            .border(1.dp, QuoteTitle.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+            .combinedClickable(
+                onClick = {},
+                onDoubleClick = {
+                    scope.launch {
+                        val bitmap = graphicsLayer.toImageBitmap().asBitmap()
+                            .copy(Bitmap.Config.ARGB_8888, true)
+                        saveBitmapToGallery(context, bitmap)
+                    }
+                }
+            )
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // ── 上：标题 + 日期时间 + 编号 ──
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                "小鱼包装报价单",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = QuoteTitle
+            )
+            Text(
+                "报价日期：${dateFormat.format(now)}",
+                fontSize = 12.sp,
+                color = QuoteGray66
+            )
+            Text(
+                "报价时间：${timeFormat.format(now)}",
+                fontSize = 12.sp,
+                color = QuoteGray66
+            )
+            state.traceCode?.let { code ->
+                Text(
+                    "报价编号：$code",
+                    fontSize = 12.sp,
+                    color = QuoteGray66
+                )
+            }
+        }
+
+        HorizontalDivider(color = QuoteFieldStroke)
+
+        // ── 中：表格 ──
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            // 表头
+            DocumentTableRow(
+                col1 = "品名", col2 = "规格", col3 = "数量",
+                col4 = "单价", col5 = "金额",
+                isHeader = true
+            )
+            HorizontalDivider(color = QuoteFieldStroke)
+
+            // 主品行
+            val unitPrice = if (state.form.orderQuantity > 0)
+                result.finalAmount / state.form.orderQuantity else 0.0
+            val spec = "${trimNumber(state.form.length)}×${trimNumber(state.form.width)}×${trimNumber(state.form.height)}cm"
+            DocumentTableRow(
+                col1 = result.materialLabel,
+                col2 = spec,
+                col3 = "${state.form.orderQuantity}",
+                col4 = moneyPlain(unitPrice),
+                col5 = money(result.finalAmount)
+            )
+
+            // 附加费行
+            enabledFees.forEach { fee ->
+                HorizontalDivider(color = QuoteFieldStroke)
+                DocumentTableRow(
+                    col1 = fee.name,
+                    col2 = "-",
+                    col3 = "-",
+                    col4 = money(fee.amount),
+                    col5 = money(fee.amount)
+                )
+            }
+        }
+
+        HorizontalDivider(color = QuoteFieldStroke)
+
+        // ── 下：公司信息 + 二维码 ──
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                InfoRow("公司", "小鱼包装有限公司")
+                InfoRow("联系人", "张经理")
+                InfoRow("电话", "138-0000-0000")
+                InfoRow("地址", "广东省东莞市xxx路xxx号")
+            }
+
+            Spacer(Modifier.width(12.dp))
+
+            // 二维码占位
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .border(1.dp, QuoteFieldStroke, RoundedCornerShape(6.dp))
+                    .background(QuoteRowBg, RoundedCornerShape(6.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("微信\n二维码", fontSize = 10.sp, color = QuoteMuted, textAlign = TextAlign.Center)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DocumentTableRow(
+    col1: String, col2: String, col3: String,
+    col4: String, col5: String,
+    isHeader: Boolean = false
+) {
+    val fontWeight = if (isHeader) FontWeight.SemiBold else FontWeight.Normal
+    val textColor = if (isHeader) QuoteGray66 else QuoteTitle
+    val bgColor = if (isHeader) QuoteRowBg else Color.Transparent
+    val fontSize = if (isHeader) 11.sp else 12.sp
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(bgColor)
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(col1, fontSize = fontSize, fontWeight = fontWeight, color = textColor,
+            modifier = Modifier.weight(2.5f), maxLines = 1)
+        Text(col2, fontSize = fontSize, fontWeight = fontWeight, color = textColor,
+            modifier = Modifier.weight(2f), maxLines = 1)
+        Text(col3, fontSize = fontSize, fontWeight = fontWeight, color = textColor,
+            modifier = Modifier.weight(1f), textAlign = TextAlign.End, maxLines = 1)
+        Text(col4, fontSize = fontSize, fontWeight = fontWeight, color = textColor,
+            modifier = Modifier.weight(1.5f), textAlign = TextAlign.End, maxLines = 1)
+        Text(col5, fontSize = fontSize, fontWeight = fontWeight, color = textColor,
+            modifier = Modifier.weight(1.5f), textAlign = TextAlign.End, maxLines = 1)
+    }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row {
+        Text("$label：", fontSize = 11.sp, color = QuoteGray66)
+        Text(value, fontSize = 11.sp, color = QuoteTitle)
+    }
+}
+
+/**
+ * 将 Bitmap 保存到系统相册（Android 10+ 用 MediaStore，不需要存储权限）。
+ */
+private suspend fun saveBitmapToGallery(context: android.content.Context, bitmap: Bitmap) {
+    withContext(Dispatchers.IO) {
+        val filename = "报价单_${System.currentTimeMillis()}.jpg"
+        val contentValues = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/小鱼包装")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        }
+        val uri = context.contentResolver.insert(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues
+        ) ?: return@withContext
+        try {
+            context.contentResolver.openOutputStream(uri)?.use { stream ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, stream)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                contentValues.clear()
+                contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                context.contentResolver.update(uri, contentValues, null, null)
+            }
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "报价单已保存到相册", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "保存失败：${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

@@ -269,6 +269,17 @@ class QuoteViewModel @Inject constructor(
         }
     }
 
+    fun setProcessSided(field: ProcessField, sided: SidedType) {
+        updateProcesses { p ->
+            when (field) {
+                ProcessField.FULL_PRINT -> p.copy(fullPrintSided = sided)
+                ProcessField.LAMINATION -> p.copy(laminationSided = sided)
+                ProcessField.MOUNTING -> p.copy(mountingSided = sided)
+                else -> p // 其他工艺不支持单双面
+            }
+        }
+    }
+
     /** 基础选项那一组的总开关（工厂加价是 extraFee，不在 ProcessValues 里，得一起改） */
     fun setBasicGroupEnabled(enabled: Boolean) {
         val state = _uiState.value
@@ -378,11 +389,12 @@ class QuoteViewModel @Inject constructor(
         if (!enabled) recalculate()
     }
 
-    /** 拖动过程中只更新数值，别每帧都跑一遍匹配；步进 1cm */
+    /** 拖动过程中实时匹配；步进 0.1cm */
     fun setSpotTolerance(tolerance: Double) {
-        val snapped = (tolerance / 1.0).roundToInt().toDouble()
+        val snapped = (tolerance * 10).roundToInt() / 10.0
             .coerceIn(QuoteUiState.MIN_TOLERANCE, QuoteUiState.MAX_TOLERANCE)
         _uiState.value = _uiState.value.copy(spotTolerance = snapped)
+        rematch()
     }
 
     /** 松手时才真正重算匹配结果 */
