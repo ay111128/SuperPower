@@ -320,7 +320,7 @@ private fun SidedToggle(
         Box(
             modifier = Modifier
                 .size(width = 22.dp, height = 22.dp)
-                .clip(RoundedCornerShape(start = 5.dp))
+                .clip(RoundedCornerShape(topStart = 5.dp, bottomStart = 5.dp))
                 .background(if (sided == SidedType.SINGLE) QuoteGreen else Color.Transparent)
                 .clickable { onSidedChange(SidedType.SINGLE) },
             contentAlignment = Alignment.Center
@@ -335,7 +335,7 @@ private fun SidedToggle(
         Box(
             modifier = Modifier
                 .size(width = 22.dp, height = 22.dp)
-                .clip(RoundedCornerShape(end = 5.dp))
+                .clip(RoundedCornerShape(topEnd = 5.dp, bottomEnd = 5.dp))
                 .background(if (sided == SidedType.DOUBLE) QuoteGreen else Color.Transparent)
                 .clickable { onSidedChange(SidedType.DOUBLE) },
             contentAlignment = Alignment.Center

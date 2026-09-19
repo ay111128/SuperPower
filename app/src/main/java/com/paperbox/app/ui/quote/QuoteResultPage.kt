@@ -40,9 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.toAndroidBitmap
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -348,13 +348,16 @@ private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation) 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .graphicsLayer(graphicsLayer)
+            .graphicsLayer {
+                drawLayer(graphicsLayer)
+            }
             .border(1.dp, QuoteTitle.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
             .combinedClickable(
                 onClick = {},
                 onDoubleClick = {
                     scope.launch {
-                        val bitmap = graphicsLayer.toImageBitmap().asBitmap()
+                        val imageBitmap = graphicsLayer.toImageBitmap()
+                        val bitmap = imageBitmap.toAndroidBitmap()
                             .copy(Bitmap.Config.ARGB_8888, true)
                         saveBitmapToGallery(context, bitmap)
                     }
