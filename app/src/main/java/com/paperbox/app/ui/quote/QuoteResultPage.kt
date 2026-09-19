@@ -42,8 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.toAndroidBitmap
-import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -348,16 +347,14 @@ private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation) 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .graphicsLayer {
-                drawLayer(graphicsLayer)
-            }
+            .graphicsLayer(graphicsLayer)
             .border(1.dp, QuoteTitle.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
             .combinedClickable(
                 onClick = {},
                 onDoubleClick = {
                     scope.launch {
                         val imageBitmap = graphicsLayer.toImageBitmap()
-                        val bitmap = imageBitmap.toAndroidBitmap()
+                        val bitmap = imageBitmap.asAndroidBitmap()
                             .copy(Bitmap.Config.ARGB_8888, true)
                         saveBitmapToGallery(context, bitmap)
                     }
