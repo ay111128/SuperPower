@@ -35,20 +35,23 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.drawToBitmap
 import com.paperbox.app.domain.model.ChargeLine
 import com.paperbox.app.domain.model.QuoteComputation
 import kotlinx.coroutines.Dispatchers
@@ -342,21 +345,38 @@ private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation) 
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val graphicsLayer = rememberGraphicsLayer()
+    val view = LocalView.current
+    val documentBounds = remember { mutableStateOf<Rect?>(null) }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .graphicsLayer(graphicsLayer)
+            .onGloballyPositioned { coordinates ->
+                documentBounds.value = coordinates.boundsInWindow()
+            }
             .border(1.dp, QuoteTitle.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
             .combinedClickable(
                 onClick = {},
                 onDoubleClick = {
+                    val bounds = documentBounds.value ?: return@combinedClickable
                     scope.launch {
-                        val imageBitmap = graphicsLayer.toImageBitmap()
-                        val bitmap = imageBitmap.asAndroidBitmap()
-                            .copy(Bitmap.Config.ARGB_8888, true)
-                        saveBitmapToGallery(context, bitmap)
+                        try {
+                            val fullBitmap = withContext(Dispatchers.IO) {
+                                view.drawToBitmap(Bitmap.Config.ARGB_8888)
+                            }
+                            val left = bounds.left.toInt().coerceAtLeast(0)
+                            val top = bounds.top.toInt().coerceAtLeast(0)
+                            val right = bounds.right.toInt().coerceAtMost(fullBitmap.width)
+                            val bottom = bounds.bottom.toInt().coerceAtMost(fullBitmap.height)
+                            val w = (right - left).coerceAtLeast(1)
+                            val h = (bottom - top).coerceAtLeast(1)
+                            val cropped = Bitmap.createBitmap(fullBitmap, left, top, w, h)
+                            saveBitmapToGallery(context, cropped)
+                        } catch (e: Exception) {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, "截图失败：${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     }
                 }
             )
