@@ -361,7 +361,7 @@ private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation) 
                     val bounds = documentBounds.value ?: return@combinedClickable
                     scope.launch {
                         try {
-                            val fullBitmap = withContext(Dispatchers.IO) {
+                            val fullBitmap = withContext(Dispatchers.Main) {
                                 view.drawToBitmap(Bitmap.Config.ARGB_8888)
                             }
                             val left = bounds.left.toInt().coerceAtLeast(0)
