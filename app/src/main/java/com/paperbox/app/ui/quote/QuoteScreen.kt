@@ -79,7 +79,7 @@ fun QuoteScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 16.dp, top = 8.dp, bottom = 2.dp)
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 2.dp)
                         .height(62.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
