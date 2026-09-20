@@ -202,16 +202,19 @@ fun QuoteScreen(
             }
         }
     ) { padding ->
-        Column(
+        // 表单和 FAB 放在同一个 Box 里，表单 fillMaxSize 白色背景覆盖整片区域
+        // FAB 浮在右下角，不需要自己的背景
+        val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+        Box(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
+                .padding(bottom = (imeBottom - 97.dp).coerceAtLeast(0.dp))
         ) {
-            // 表单区：不动，不跟键盘上移
+            // 表单区：填满整个 Box，白色背景
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .background(Color.White)
                     .verticalScroll(scrollState)
                     .padding(horizontal = 16.dp, vertical = 20.dp),
@@ -260,13 +263,11 @@ fun QuoteScreen(
                 )
             }
 
-            // FAB 区：只有它跟着键盘上移，减掉底栏97dp
-            val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+            // FAB 浮在表单右下角，表单的白色背景自然透过来
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = (imeBottom - 97.dp).coerceAtLeast(0.dp))
-                    .padding(end = 16.dp, bottom = 16.dp, top = 4.dp),
+                    .fillMaxSize()
+                    .padding(end = 16.dp, bottom = 16.dp),
                 contentAlignment = Alignment.BottomEnd
             ) {
                 QuoteGenerateFab(
