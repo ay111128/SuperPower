@@ -108,7 +108,7 @@ internal fun QuoteResultPage(
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 20.dp),
+                .padding(horizontal = 0.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             QuoteDocumentSection(state, result)
@@ -397,10 +397,23 @@ private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation) 
                 }
             )
     ) {
+        // ── 标题区域（绿色背景上方）──
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(CardDescBg)
+                .padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text("报 价 单", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CardGreen)
+            Text("QUOTATION", fontSize = 11.sp, color = CardTextGray)
+        }
+
         // ── Header: 绿色顶栏 ──
         CardHeader(state, dateFormat.format(now))
 
-        // ── DescArea: 标题 + 描述 ──
+        // ── DescArea: 描述文字 ──
         CardDescArea()
 
         // ── ColumnBar: 表头 ──
@@ -420,7 +433,7 @@ private fun CardHeader(state: QuoteUiState, dateStr: String) {
         modifier = Modifier
             .fillMaxWidth()
             .background(CardGreen)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -473,13 +486,9 @@ private fun CardDescArea() {
         modifier = Modifier
             .fillMaxWidth()
             .background(CardDescBg)
-            .padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("报 价 单", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CardGreen)
-        Text("QUOTATION", fontSize = 11.sp, color = CardTextGray)
-        Spacer(Modifier.height(2.dp))
         Text(
             "感谢您对本公司的信任，以下是我们为您提供的报价，请您参考：",
             fontSize = 9.sp,
@@ -630,27 +639,24 @@ private fun CardBottomSection() {
             .height(127.dp)
             .background(CardGreen)
             .padding(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         // 联系信息
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text("联系我们", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
             CardInfoRow("联系人：", "吴小姐")
             CardInfoRow("电话：", "13570315323")
             CardInfoRow("微信：", "xbrody")
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("地址：", fontSize = 9.sp, color = CardGreenLight)
-                Text("广东省广州市增城区新塘镇富源路35号", fontSize = 9.sp, color = Color.White)
-            }
+            CardInfoRow("地址：", "广东省广州市增城区新塘镇富源路35号")
         }
 
         // 二维码
         Box(
             modifier = Modifier
-                .size(110.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color.White),
             contentAlignment = Alignment.Center
@@ -658,7 +664,7 @@ private fun CardBottomSection() {
             androidx.compose.foundation.Image(
                 painter = painterResource(id = R.drawable.wechat_qr),
                 contentDescription = "微信二维码",
-                modifier = Modifier.size(100.dp),
+                modifier = Modifier.size(110.dp),
                 contentScale = ContentScale.Fit
             )
         }
