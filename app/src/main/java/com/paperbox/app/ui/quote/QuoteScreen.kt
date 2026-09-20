@@ -148,32 +148,44 @@ fun QuoteScreen(
                             fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold
                         )
-                        // ── 表单实时摘要：跟在标题右边，水平排列 ──
+                        // ── 表单实时摘要：标题右边，上下两行 ──
                         val hasAnyInput = state.lengthText.isNotEmpty() || state.widthText.isNotEmpty() ||
                                 state.heightText.isNotEmpty() || state.quantityText.isNotEmpty()
                         if (hasAnyInput) {
                             Spacer(Modifier.width(8.dp))
-                            val parts = mutableListOf<String>()
-                            if (state.lengthText.isNotEmpty()) parts.add(state.lengthText)
-                            if (state.widthText.isNotEmpty()) parts.add(state.widthText)
-                            if (state.heightText.isNotEmpty()) parts.add(state.heightText)
-                            val sizeLine = parts.joinToString("×")
-                            val qtyLine = if (state.quantityText.isNotEmpty()) " ×${state.quantityText}" else ""
-                            val computation = state.result
-                            val priceLine = if (computation != null && state.form.orderQuantity > 0) {
-                                val unitPrice = computation.finalAmount / state.form.orderQuantity
-                                "  ¥${String.format("%.2f", unitPrice)}/个  总¥${String.format("%.2f", computation.finalAmount)}"
-                            } else ""
-                            Text(
-                                text = sizeLine + qtyLine + priceLine,
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                // 第一行：尺寸 × 数量
+                                val parts = mutableListOf<String>()
+                                if (state.lengthText.isNotEmpty()) parts.add(state.lengthText)
+                                if (state.widthText.isNotEmpty()) parts.add(state.widthText)
+                                if (state.heightText.isNotEmpty()) parts.add(state.heightText)
+                                val sizeLine = parts.joinToString(" × ")
+                                val qtyLine = if (state.quantityText.isNotEmpty()) "  数量 ${state.quantityText}" else ""
+                                if (sizeLine.isNotEmpty() || qtyLine.isNotEmpty()) {
+                                    Text(
+                                        text = sizeLine + qtyLine,
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                // 第二行：单价 + 总价
+                                val computation = state.result
+                                if (computation != null && state.form.orderQuantity > 0) {
+                                    val unitPrice = computation.finalAmount / state.form.orderQuantity
+                                    Text(
+                                        text = "单价 ¥${String.format("%.2f", unitPrice)}/个  总共 ¥${String.format("%.2f", computation.finalAmount)}",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        } else {
+                            Spacer(Modifier.weight(1f))
                         }
-                        Spacer(Modifier.weight(1f))
                         IconButton(
                             onClick = { viewModel.toggleSearch() },
                             modifier = Modifier.size(40.dp)
