@@ -206,9 +206,8 @@ fun QuoteScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .imePadding()
         ) {
-            // 表单区：weight 让它占据 FAB 以上的所有空间
+            // 表单区：不动，不跟键盘上移
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -261,11 +260,12 @@ fun QuoteScreen(
                 )
             }
 
-            // FAB 区：固定在底部，背景与表单齐平
+            // FAB 区：只有它跟着键盘上移，减掉底栏97dp
+            val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.White)
+                    .padding(bottom = (imeBottom - 97.dp).coerceAtLeast(0.dp))
                     .padding(end = 16.dp, bottom = 16.dp, top = 4.dp),
                 contentAlignment = Alignment.BottomEnd
             ) {
