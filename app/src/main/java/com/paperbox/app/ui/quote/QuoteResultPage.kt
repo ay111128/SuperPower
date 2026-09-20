@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -32,7 +31,7 @@ import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
+
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -44,9 +43,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -77,7 +78,6 @@ import java.util.Locale
 internal fun QuoteResultPage(
     state: QuoteUiState,
     onBack: () -> Unit,
-    onSave: () -> Unit,
     onClearTraceCode: () -> Unit,
     onClearError: () -> Unit,
     onToggleLanguage: () -> Unit
@@ -104,10 +104,11 @@ internal fun QuoteResultPage(
                 val h = (bottom - top).coerceAtLeast(1)
                 val cropped = Bitmap.createBitmap(fullBitmap, left, top, w, h)
 
-                // 圆角处理（12dp）
+                // 圆角处理（12dp），圆角外透明
                 val radiusPx = (12 * context.resources.displayMetrics.density).toInt()
                 val rounded = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
                 val canvas = android.graphics.Canvas(rounded)
+                canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
                 val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
                 val path = android.graphics.Path()
                 path.addRoundRect(
@@ -200,27 +201,6 @@ internal fun QuoteResultPage(
             }
             QuoteSummaryCard(state, result)
             QuoteBreakdownCard(state, result)
-
-            // ── 保存 ──
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (state.isLoading) QuoteGreen.copy(alpha = 0.6f) else QuoteGreen)
-                    .clickable(enabled = !state.isLoading, onClick = onSave),
-                contentAlignment = Alignment.Center
-            ) {
-                if (state.isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text("保存记录", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
 
             state.traceCode?.let { code ->
                 Row(
@@ -476,26 +456,11 @@ private fun QuoteDocumentSection(
         // ── DescArea: 描述文字 ──
         CardDescArea(isEnglish)
 
-        // ── 表头 + 数据区（连续竖线分割） ──
-        Box(modifier = Modifier.fillMaxWidth()) {
-            // 内容在下层
-            Column(modifier = Modifier.fillMaxWidth()) {
-                CardColumnBar(isEnglish)
-                CardDataArea(state, result, enabledFees, isEnglish)
-            }
-            // 连续竖线在上层
-            val lineColor = Color(0xFF999999)
-            val linePositions = listOf(52.dp, 143.dp, 229.dp, 275.dp, 321.dp)
-            linePositions.forEach { x ->
-                Box(
-                    modifier = Modifier
-                        .offset(x = x)
-                        .width(1.dp)
-                        .fillMaxHeight()
-                        .background(lineColor)
-                )
-            }
-        }
+        // ── ColumnBar: 表头 ──
+        CardColumnBar(isEnglish)
+
+        // ── DataArea: 数据行 + 合计 ──
+        CardDataArea(state, result, enabledFees, isEnglish)
 
         // ── BottomSection: 联系信息 + 二维码 ──
         CardBottomSection(isEnglish)
@@ -573,6 +538,7 @@ private fun CardDescArea(isEnglish: Boolean = false) {
 
 @Composable
 private fun CardColumnBar(isEnglish: Boolean = false) {
+    val dividerColor = Color.White.copy(alpha = 0.4f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -581,24 +547,38 @@ private fun CardColumnBar(isEnglish: Boolean = false) {
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        CardHeaderText(if (isEnglish) "No." else "序号", 36.dp, TextAlign.Center)
-        CardHeaderText(if (isEnglish) "Product" else "产品名称", 90.dp, TextAlign.Center)
-        CardHeaderText(if (isEnglish) "Spec" else "规格", 85.dp, TextAlign.Center)
-        CardHeaderText(if (isEnglish) "Qty" else "数量", 45.dp, TextAlign.Center)
-        CardHeaderText(if (isEnglish) "Price" else "单价", 45.dp, TextAlign.Center)
-        CardHeaderText(if (isEnglish) "Amount" else "金额", 54.dp, TextAlign.Center)
+        CardHeaderText(if (isEnglish) "No." else "序号", 36.dp, TextAlign.Center, true, dividerColor)
+        CardHeaderText(if (isEnglish) "Product" else "产品名称", 90.dp, TextAlign.Center, true, dividerColor)
+        CardHeaderText(if (isEnglish) "Spec" else "规格", 85.dp, TextAlign.Center, true, dividerColor)
+        CardHeaderText(if (isEnglish) "Qty" else "数量", 45.dp, TextAlign.Center, true, dividerColor)
+        CardHeaderText(if (isEnglish) "Price" else "单价", 45.dp, TextAlign.Center, true, dividerColor)
+        CardHeaderText(if (isEnglish) "Amount" else "金额", 54.dp, TextAlign.Center, false, dividerColor)
     }
 }
 
 @Composable
-private fun RowScope.CardHeaderText(text: String, width: Dp, align: TextAlign) {
+private fun RowScope.CardHeaderText(
+    text: String, width: Dp, align: TextAlign,
+    showEndDivider: Boolean = false, dividerColor: Color = Color.Transparent
+) {
     Text(
         text,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
         color = Color.White,
         textAlign = align,
-        modifier = Modifier.width(width)
+        modifier = Modifier
+            .width(width)
+            .drawBehind {
+                if (showEndDivider) {
+                    drawLine(
+                        color = dividerColor,
+                        start = Offset(size.width, 0f),
+                        end = Offset(size.width, size.height),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                }
+            }
     )
 }
 
@@ -691,16 +671,27 @@ private fun CardDataRow(
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val cellDividerColor = Color(0xFFCCCCCC)
             Text("$index", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CardTextDark,
-                textAlign = TextAlign.Center, modifier = Modifier.width(36.dp))
+                textAlign = TextAlign.Center, modifier = Modifier.width(36.dp).drawBehind {
+                    drawLine(cellDividerColor, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
+                })
             Text(name, fontSize = 10.sp, color = CardTextDark,
-                textAlign = TextAlign.Center, modifier = Modifier.width(90.dp))
+                textAlign = TextAlign.Center, modifier = Modifier.width(90.dp).drawBehind {
+                    drawLine(cellDividerColor, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
+                })
             Text(spec, fontSize = 10.sp, color = CardTextDark,
-                textAlign = TextAlign.Center, modifier = Modifier.width(85.dp))
+                textAlign = TextAlign.Center, modifier = Modifier.width(85.dp).drawBehind {
+                    drawLine(cellDividerColor, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
+                })
             Text(quantity, fontSize = 10.sp, color = CardTextDark,
-                textAlign = TextAlign.Center, modifier = Modifier.width(45.dp))
+                textAlign = TextAlign.Center, modifier = Modifier.width(45.dp).drawBehind {
+                    drawLine(cellDividerColor, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
+                })
             Text(unitPrice, fontSize = 10.sp, color = CardTextDark,
-                textAlign = TextAlign.Center, modifier = Modifier.width(45.dp))
+                textAlign = TextAlign.Center, modifier = Modifier.width(45.dp).drawBehind {
+                    drawLine(cellDividerColor, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
+                })
             Text(amount, fontSize = 10.sp, color = CardGreen,
                 textAlign = TextAlign.Center, modifier = Modifier.width(54.dp))
         }

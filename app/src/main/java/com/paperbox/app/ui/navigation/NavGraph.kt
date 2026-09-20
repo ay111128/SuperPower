@@ -107,8 +107,13 @@ fun AppNavGraph() {
             modifier = modifier
         ) {
             composable(Screen.Quote.route) {
+                val quoteViewModel: QuoteViewModel = hiltViewModel()
                 QuoteScreen(
-                    onGenerateQuote = { navController.navigate(QUOTE_RESULT_ROUTE) },
+                    onGenerateQuote = {
+                        if (quoteViewModel.generateQuote()) {
+                            navController.navigate(QUOTE_RESULT_ROUTE)
+                        }
+                    },
                     onOpenSizeGuide = { navigateToTab(Screen.SizeGuide.route) }
                 )
             }
@@ -132,7 +137,6 @@ fun AppNavGraph() {
                     QuoteResultPage(
                         state = state,
                         onBack = { navController.popBackStack() },
-                        onSave = { quoteViewModel.saveQuoteRecord() },
                         onClearTraceCode = { quoteViewModel.clearTraceCode() },
                         onClearError = { quoteViewModel.clearError() },
                         onToggleLanguage = { quoteViewModel.toggleLanguage() }

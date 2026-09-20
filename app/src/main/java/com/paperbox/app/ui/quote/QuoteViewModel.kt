@@ -440,9 +440,13 @@ class QuoteViewModel @Inject constructor(
         )
     }
 
-    fun saveQuoteRecord() {
+    /**
+     * 点击"生成报价"时调用：保存记录并返回工单号。
+     * 返回 true 表示已发起请求，false 表示无结果可保存。
+     */
+    fun generateQuote(): Boolean {
         val state = _uiState.value
-        val result = state.result ?: return
+        val result = state.result ?: return false
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
@@ -456,7 +460,6 @@ class QuoteViewModel @Inject constructor(
                     materialLabel = result.materialLabel,
                     materialUnitPrice = result.materialUnitPrice,
                     materialCost = result.materialCost,
-                    // processCost = 小计里除材料费以外的部分（含基础选项 + 印刷定制）
                     processCost = result.subtotal - result.materialCost,
                     logisticsCost = if (state.form.processes.logisticsEnabled) state.form.processes.logisticsFee else 0.0,
                     specialFeesCost = result.specialFeesSum,
@@ -485,6 +488,7 @@ class QuoteViewModel @Inject constructor(
                 )
             }
         }
+        return true
     }
 
     fun clearError() {
