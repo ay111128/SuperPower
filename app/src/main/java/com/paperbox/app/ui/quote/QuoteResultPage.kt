@@ -636,7 +636,6 @@ private fun CardBottomSection() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(127.dp)
             .background(CardGreen)
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -645,7 +644,7 @@ private fun CardBottomSection() {
         // 联系信息
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
+            verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
             Text("联系我们", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
             CardInfoRow("联系人：", "吴小姐")
@@ -657,15 +656,14 @@ private fun CardBottomSection() {
         // 二维码
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.White),
+                .clip(RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center
         ) {
             androidx.compose.foundation.Image(
                 painter = painterResource(id = R.drawable.wechat_qr),
                 contentDescription = "微信二维码",
                 modifier = Modifier.size(110.dp),
-                contentScale = ContentScale.Fit
+                contentScale = ContentScale.Crop
             )
         }
     }
