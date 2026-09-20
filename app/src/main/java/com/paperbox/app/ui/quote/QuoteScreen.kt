@@ -144,32 +144,19 @@ fun QuoteScreen(
                                 modifier = Modifier.size(20.dp)
                             )
                         }
-                        IconButton(
-                            onClick = { viewModel.reset() },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Search,
-                                contentDescription = "重置",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
                     }
                 }
             }
-        },
-        floatingActionButton = {
-            QuoteGenerateFab(
-                enabled = state.result != null,
-                onClick = onGenerateQuote
-            )
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .padding(padding)
+                .fillMaxSize()
                 .imePadding()
+        ) {
+        Column(
+            modifier = Modifier
                 .fillMaxSize()
                 .background(Color.White)
                 .verticalScroll(scrollState)
@@ -221,6 +208,19 @@ fun QuoteScreen(
 
             // 给浮动按钮留出位置
             Spacer(Modifier.height(96.dp))
+        }
+
+            // 悬浮按钮放在 Box 里，imePadding 让它跟着键盘上移
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 24.dp)
+            ) {
+                QuoteGenerateFab(
+                    enabled = state.result != null,
+                    onClick = onGenerateQuote
+                )
+            }
         }
     }
 }

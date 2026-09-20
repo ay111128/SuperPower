@@ -310,42 +310,45 @@ private fun SidedToggle(
     onSidedChange: (SidedType) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    Box(
         modifier = modifier
-            .height(22.dp)
+            .size(width = 44.dp, height = 22.dp)
             .clip(RoundedCornerShape(6.dp))
-            .border(1.dp, QuoteFieldStroke, RoundedCornerShape(6.dp)),
-        verticalAlignment = Alignment.CenterVertically
+            .border(1.dp, QuoteFieldStroke, RoundedCornerShape(6.dp))
+            .clickable { onSidedChange(if (sided == SidedType.SINGLE) SidedType.DOUBLE else SidedType.SINGLE) }
     ) {
-        Box(
-            modifier = Modifier
-                .size(width = 22.dp, height = 22.dp)
-                .clip(RoundedCornerShape(topStart = 5.dp, bottomStart = 5.dp))
-                .background(if (sided == SidedType.SINGLE) QuoteGreen else Color.Transparent)
-                .clickable { onSidedChange(SidedType.SINGLE) },
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "单",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                color = if (sided == SidedType.SINGLE) Color.White else QuoteGray66
-            )
-        }
-        Box(
-            modifier = Modifier
-                .size(width = 22.dp, height = 22.dp)
-                .clip(RoundedCornerShape(topEnd = 5.dp, bottomEnd = 5.dp))
-                .background(if (sided == SidedType.DOUBLE) QuoteGreen else Color.Transparent)
-                .clickable { onSidedChange(SidedType.DOUBLE) },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                "双",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                color = if (sided == SidedType.DOUBLE) Color.White else QuoteGray66
-            )
+            Box(
+                modifier = Modifier
+                    .size(width = 22.dp, height = 22.dp)
+                    .clip(RoundedCornerShape(topStart = 5.dp, bottomStart = 5.dp))
+                    .background(if (sided == SidedType.SINGLE) QuoteGreen else Color.Transparent),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "单",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (sided == SidedType.SINGLE) Color.White else QuoteGray66
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(width = 22.dp, height = 22.dp)
+                    .clip(RoundedCornerShape(topEnd = 5.dp, bottomEnd = 5.dp))
+                    .background(if (sided == SidedType.DOUBLE) QuoteGreen else Color.Transparent),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "双",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (sided == SidedType.DOUBLE) Color.White else QuoteGray66
+                )
+            }
         }
     }
 }
