@@ -51,6 +51,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -637,7 +638,7 @@ private fun CardBottomSection() {
         modifier = Modifier
             .fillMaxWidth()
             .background(CardGreen)
-            .padding(16.dp),
+            .padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -646,7 +647,7 @@ private fun CardBottomSection() {
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
-            Text("联系我们", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("联系我们", style = TextStyle(fontSize = 12.sp, lineHeight = 12.sp), fontWeight = FontWeight.Bold, color = Color.White)
             CardInfoRow("联系人：", "吴小姐")
             CardInfoRow("电话：", "13570315323")
             CardInfoRow("微信：", "xbrody")
@@ -672,8 +673,8 @@ private fun CardBottomSection() {
 @Composable
 private fun CardInfoRow(label: String, value: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, fontSize = 9.sp, color = CardGreenLight)
-        Text(value, fontSize = 9.sp, color = Color.White)
+        Text(label, style = TextStyle(fontSize = 9.sp, lineHeight = 9.sp), color = CardGreenLight)
+        Text(value, style = TextStyle(fontSize = 9.sp, lineHeight = 9.sp), color = Color.White)
     }
 }
 
