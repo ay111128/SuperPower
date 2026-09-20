@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.rememberScrollState
@@ -609,26 +610,45 @@ private fun CardDataRow(
     amount: String,
     isAlt: Boolean
 ) {
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(38.dp)
+            .wrapContentHeight()
             .background(if (isAlt) CardRowAlt else Color.White)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("$index", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CardTextDark,
-            textAlign = TextAlign.Center, modifier = Modifier.width(36.dp))
-        Text(name, fontSize = 10.sp, color = CardTextDark,
-            modifier = Modifier.width(90.dp), maxLines = 1)
-        Text(spec, fontSize = 10.sp, color = CardTextDark,
-            modifier = Modifier.width(85.dp), maxLines = 1)
-        Text(quantity, fontSize = 10.sp, color = CardTextDark,
-            textAlign = TextAlign.End, modifier = Modifier.width(45.dp))
-        Text(unitPrice, fontSize = 10.sp, color = CardTextDark,
-            textAlign = TextAlign.End, modifier = Modifier.width(45.dp))
-        Text(amount, fontSize = 10.sp, color = CardGreen,
-            textAlign = TextAlign.End, modifier = Modifier.width(54.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("$index", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CardTextDark,
+                textAlign = TextAlign.Center, modifier = Modifier.width(36.dp))
+            CardDivider()
+            Text(name, fontSize = 10.sp, color = CardTextDark,
+                modifier = Modifier.width(90.dp))
+            CardDivider()
+            Text(spec, fontSize = 10.sp, color = CardTextDark,
+                modifier = Modifier.width(85.dp))
+            CardDivider()
+            Text(quantity, fontSize = 10.sp, color = CardTextDark,
+                textAlign = TextAlign.End, modifier = Modifier.width(45.dp))
+            CardDivider()
+            Text(unitPrice, fontSize = 10.sp, color = CardTextDark,
+                textAlign = TextAlign.End, modifier = Modifier.width(45.dp))
+            CardDivider()
+            Text(amount, fontSize = 10.sp, color = CardGreen,
+                textAlign = TextAlign.End, modifier = Modifier.width(54.dp))
+        }
+        // 底部分割线
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(0.5.dp)
+                .align(Alignment.BottomCenter)
+                .background(Color(0xFFE0E0E0))
+        )
     }
 }
 
@@ -638,16 +658,16 @@ private fun CardBottomSection() {
         modifier = Modifier
             .fillMaxWidth()
             .background(CardGreen)
-            .padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 2.dp),
+            .padding(start = 16.dp, top = 2.dp, end = 16.dp, bottom = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 联系信息
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(1.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text("联系我们", style = TextStyle(fontSize = 12.sp, lineHeight = 12.sp), fontWeight = FontWeight.Bold, color = Color.White)
+            Text("联系我们", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
             CardInfoRow("联系人：", "吴小姐")
             CardInfoRow("电话：", "13570315323")
             CardInfoRow("微信：", "xbrody")
