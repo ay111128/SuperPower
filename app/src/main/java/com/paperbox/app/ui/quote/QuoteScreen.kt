@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.paperbox.app.domain.model.LayoutKey
 
@@ -147,6 +148,31 @@ fun QuoteScreen(
                             fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold
                         )
+                        // ── 表单实时摘要：跟在标题右边，水平排列 ──
+                        val hasAnyInput = state.lengthText.isNotEmpty() || state.widthText.isNotEmpty() ||
+                                state.heightText.isNotEmpty() || state.quantityText.isNotEmpty()
+                        if (hasAnyInput) {
+                            Spacer(Modifier.width(8.dp))
+                            val parts = mutableListOf<String>()
+                            if (state.lengthText.isNotEmpty()) parts.add(state.lengthText)
+                            if (state.widthText.isNotEmpty()) parts.add(state.widthText)
+                            if (state.heightText.isNotEmpty()) parts.add(state.heightText)
+                            val sizeLine = parts.joinToString("×")
+                            val qtyLine = if (state.quantityText.isNotEmpty()) " ×${state.quantityText}" else ""
+                            val computation = state.result
+                            val priceLine = if (computation != null && state.form.orderQuantity > 0) {
+                                val unitPrice = computation.finalAmount / state.form.orderQuantity
+                                "  ¥${String.format("%.2f", unitPrice)}/个  总¥${String.format("%.2f", computation.finalAmount)}"
+                            } else ""
+                            Text(
+                                text = sizeLine + qtyLine + priceLine,
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                        }
                         Spacer(Modifier.weight(1f))
                         IconButton(
                             onClick = { viewModel.toggleSearch() },
@@ -161,116 +187,81 @@ fun QuoteScreen(
                         }
                     }
                 }
-                // ── 表单实时摘要：输入了什么就显示什么 ──
-                val hasAnyInput = state.lengthText.isNotEmpty() || state.widthText.isNotEmpty() ||
-                        state.heightText.isNotEmpty() || state.quantityText.isNotEmpty()
-                if (hasAnyInput) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                    ) {
-                        // 尺寸行：没输入的不显示
-                        val parts = mutableListOf<String>()
-                        if (state.lengthText.isNotEmpty()) parts.add(state.lengthText)
-                        if (state.widthText.isNotEmpty()) parts.add(state.widthText)
-                        if (state.heightText.isNotEmpty()) parts.add(state.heightText)
-                        val sizeLine = parts.joinToString(" × ")
-                        val qtyLine = if (state.quantityText.isNotEmpty()) "  数量${state.quantityText}" else ""
-                        if (sizeLine.isNotEmpty() || qtyLine.isNotEmpty()) {
-                            Text(
-                                text = sizeLine + qtyLine,
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 12.sp,
-                                maxLines = 1
-                            )
-                        }
-                        // 价格行：有计算结果才显示
-                        val computation = state.result
-                        if (computation != null && state.form.orderQuantity > 0) {
-                            val unitPrice = computation.finalAmount / state.form.orderQuantity
-                            Text(
-                                text = "单价 ${trimNumber(unitPrice)} 元  总共 ${trimNumber(computation.finalAmount)} 元",
-                                color = Color.White.copy(alpha = 0.7f),
-                                fontSize = 11.sp,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
             }
         }
     ) { padding ->
-        // 表单区：imePadding 让内容跟着键盘上移，底部 96dp 留给 FAB
         Column(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .background(Color.White)
                 .imePadding()
-                .verticalScroll(scrollState)
-                .padding(horizontal = 16.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            QuoteDimensionSection(
-                state = state,
-                onLength = viewModel::updateLength,
-                onWidth = viewModel::updateWidth,
-                onHeight = viewModel::updateHeight
-            )
-
-            QuoteProductionSection(
-                state = state,
-                onQuantity = viewModel::updateQuantity,
-                onProfit = viewModel::updateProfitPercentage
-            )
-
-            // ── 材质 / 工艺 / 附加费 ──
+            // 表单区：weight 让它占据 FAB 以上的所有空间
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 16.dp, vertical = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                QuoteMaterialSection(state = state, onSelect = viewModel::updateMaterialKey)
-
-                QuoteProcessSummaryRow(
+                QuoteDimensionSection(
                     state = state,
-                    expanded = layoutMenuExpanded,
-                    onExpandedChange = { layoutMenuExpanded = it },
-                    onSelectLayout = { layout: LayoutKey -> viewModel.updateLayout(layout) }
+                    onLength = viewModel::updateLength,
+                    onWidth = viewModel::updateWidth,
+                    onHeight = viewModel::updateHeight
                 )
 
-                QuoteProcessGroups(state = state, vm = viewModel)
+                QuoteProductionSection(
+                    state = state,
+                    onQuantity = viewModel::updateQuantity,
+                    onProfit = viewModel::updateProfitPercentage
+                )
 
-                QuoteSpecialFeeSection(state = state, vm = viewModel)
+                // ── 材质 / 工艺 / 附加费 ──
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    QuoteMaterialSection(state = state, onSelect = viewModel::updateMaterialKey)
+
+                    QuoteProcessSummaryRow(
+                        state = state,
+                        expanded = layoutMenuExpanded,
+                        onExpandedChange = { layoutMenuExpanded = it },
+                        onSelectLayout = { layout: LayoutKey -> viewModel.updateLayout(layout) }
+                    )
+
+                    QuoteProcessGroups(state = state, vm = viewModel)
+
+                    QuoteSpecialFeeSection(state = state, vm = viewModel)
+                }
+
+                SpotMatchCard(
+                    state = state,
+                    onToggleEnabled = viewModel::setSpotMatchEnabled,
+                    onToleranceChange = viewModel::setSpotTolerance,
+                    onToleranceCommit = viewModel::commitSpotTolerance,
+                    onSelectCategory = viewModel::selectSpotCategory,
+                    onOpenSizeGuide = onOpenSizeGuide,
+                    onSelectSpot = viewModel::selectSpotProduct
+                )
             }
 
-            SpotMatchCard(
-                state = state,
-                onToggleEnabled = viewModel::setSpotMatchEnabled,
-                onToleranceChange = viewModel::setSpotTolerance,
-                onToleranceCommit = viewModel::commitSpotTolerance,
-                onSelectCategory = viewModel::selectSpotCategory,
-                onOpenSizeGuide = onOpenSizeGuide,
-                onSelectSpot = viewModel::selectSpotProduct
-            )
-
-            // 给浮动按钮留出位置
-            Spacer(Modifier.height(96.dp))
-        }
-
-        // 悬浮按钮：单独放在 imePadding 的 Box 里，紧跟键盘上移，不留灰缝
-        Box(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .imePadding()
-                .padding(end = 16.dp, bottom = 24.dp),
-            contentAlignment = Alignment.BottomEnd
-        ) {
-            QuoteGenerateFab(
-                enabled = state.result != null,
-                onClick = onGenerateQuote
-            )
+            // FAB 区：固定在底部，背景与表单齐平
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .padding(end = 16.dp, bottom = 16.dp, top = 4.dp),
+                contentAlignment = Alignment.BottomEnd
+            ) {
+                QuoteGenerateFab(
+                    enabled = state.result != null,
+                    onClick = onGenerateQuote
+                )
+            }
         }
     }
 }
