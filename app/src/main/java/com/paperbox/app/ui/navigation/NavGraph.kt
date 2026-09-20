@@ -114,6 +114,7 @@ fun AppNavGraph() {
                             navController.navigate(QUOTE_RESULT_ROUTE)
                         }
                     },
+                    onSearchSuccess = { navController.navigate(QUOTE_RESULT_ROUTE) },
                     onOpenSizeGuide = { navigateToTab(Screen.SizeGuide.route) }
                 )
             }

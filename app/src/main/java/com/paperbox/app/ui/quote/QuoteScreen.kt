@@ -1,12 +1,15 @@
 package com.paperbox.app.ui.quote
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,6 +20,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.paperbox.app.domain.model.LayoutKey
 
@@ -24,11 +32,30 @@ import com.paperbox.app.domain.model.LayoutKey
 @Composable
 fun QuoteScreen(
     onGenerateQuote: () -> Unit,
+    onSearchSuccess: () -> Unit,
     onOpenSizeGuide: () -> Unit,
     viewModel: QuoteViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
+    val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
+
+    // 搜索失败时弹 Toast
+    LaunchedEffect(state.errorMessage) {
+        state.errorMessage?.let {
+            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.clearError()
+        }
+    }
+
+    // 搜索成功后跳转结果页
+    LaunchedEffect(state.searchReady) {
+        if (state.searchReady) {
+            viewModel.clearSearchReady()
+            onSearchSuccess()
+        }
+    }
 
     // 「工艺」那一行的排版下拉。放在这里而不是 UiState ——
     // 一个纯粹的临时 UI 标志，塞进 state 会让整页跟着重组
@@ -54,24 +81,80 @@ fun QuoteScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .height(62.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        "报价",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    IconButton(
-                        onClick = { viewModel.reset() },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = "重置",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                    if (state.isSearchActive) {
+                        Spacer(Modifier.width(4.dp))
+                        BasicTextField(
+                            value = state.searchFieldText,
+                            onValueChange = { viewModel.updateSearchField(it) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(32.dp)
+                                .background(Color.White, RoundedCornerShape(10.dp))
+                                .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(10.dp)),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontSize = 14.sp,
+                                color = Color(0xFF333333)
+                            ),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = {
+                                focusManager.clearFocus()
+                                viewModel.searchByTraceCode(state.searchFieldText)
+                            }),
+                            decorationBox = { innerTextField ->
+                                Box(
+                                    contentAlignment = Alignment.CenterStart,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 1.dp)
+                                ) {
+                                    if (state.searchFieldText.isEmpty()) {
+                                        Text("输入工单编号…", color = Color(0xFF999999), fontSize = 14.sp)
+                                    }
+                                    innerTextField()
+                                }
+                            }
                         )
+                        IconButton(
+                            onClick = { viewModel.toggleSearch() },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "关闭搜索",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    } else {
+                        Text(
+                            "报价",
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.weight(1f))
+                        IconButton(
+                            onClick = { viewModel.toggleSearch() },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "查询工单",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = { viewModel.reset() },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "重置",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -86,6 +169,7 @@ fun QuoteScreen(
         Column(
             modifier = Modifier
                 .padding(padding)
+                .imePadding()
                 .fillMaxSize()
                 .background(Color.White)
                 .verticalScroll(scrollState)

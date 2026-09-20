@@ -159,3 +159,26 @@ data class QuoteRecordResponse(
     @Json(name = "full_uuid") val fullUuid: String,
     @Json(name = "created_at") val createdAt: String
 )
+
+@JsonClass(generateAdapter = true)
+data class QuoteRecordDetail(
+    val uuid: String = "",
+    @Json(name = "trace_code") val traceCode: String = "",
+    @Json(name = "created_at") val createdAt: String = "",
+    val length: Double = 0.0,
+    val width: Double = 0.0,
+    val height: Double = 0.0,
+    val quantity: Int = 0,
+    @Json(name = "material_key") val materialKey: String? = null,
+    @Json(name = "material_label") val materialLabel: String? = null,
+    @Json(name = "material_unit_price") val materialUnitPrice: Double? = null,
+    @Json(name = "material_cost") val materialCost: Double? = null,
+    @Json(name = "process_cost") val processCost: Double? = null,
+    @Json(name = "logistics_cost") val logisticsCost: Double? = null,
+    @Json(name = "special_fees_cost") val specialFeesCost: Double? = null,
+    @Json(name = "profit_amount") val profitAmount: Double? = null,
+    @Json(name = "extra_fee") val extraFee: Double? = null,
+    @Json(name = "final_amount") val finalAmount: Double? = null,
+    @Json(name = "unit_price") val unitPrice: Double? = null,
+    @Json(name = "total_weight") val totalWeight: Double? = null
+)

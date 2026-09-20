@@ -104,22 +104,7 @@ internal fun QuoteResultPage(
                 val h = (bottom - top).coerceAtLeast(1)
                 val cropped = Bitmap.createBitmap(fullBitmap, left, top, w, h)
 
-                // 圆角处理（12dp），圆角外透明
-                val radiusPx = (12 * context.resources.displayMetrics.density).toInt()
-                val rounded = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                val canvas = android.graphics.Canvas(rounded)
-                canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
-                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-                val path = android.graphics.Path()
-                path.addRoundRect(
-                    0f, 0f, w.toFloat(), h.toFloat(),
-                    radiusPx.toFloat(), radiusPx.toFloat(),
-                    android.graphics.Path.Direction.CW
-                )
-                canvas.clipPath(path)
-                canvas.drawBitmap(cropped, 0f, 0f, paint)
-
-                saveBitmapToGallery(context, rounded)
+                saveBitmapToGallery(context, cropped)
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "已保存到相册", Toast.LENGTH_SHORT).show()
                 }
@@ -771,7 +756,7 @@ private suspend fun saveBitmapToGallery(context: android.content.Context, bitmap
         ) ?: return@withContext
         try {
             context.contentResolver.openOutputStream(uri)?.use { stream ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, stream)
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 contentValues.clear()

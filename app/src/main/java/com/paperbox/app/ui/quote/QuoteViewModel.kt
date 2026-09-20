@@ -47,7 +47,11 @@ data class QuoteUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val traceCode: String? = null,
-    val isEnglish: Boolean = false
+    val lastSavedForm: QuoteFormValues? = null,
+    val isEnglish: Boolean = false,
+    val isSearchActive: Boolean = false,
+    val searchFieldText: String = "",
+    val searchReady: Boolean = false
 ) {
     companion object {
         /** 匹配容差的默认值，同时是滑块的起始位置 */
@@ -442,11 +446,17 @@ class QuoteViewModel @Inject constructor(
 
     /**
      * 点击"生成报价"时调用：保存记录并返回工单号。
-     * 返回 true 表示已发起请求，false 表示无结果可保存。
+     * 如果表单没变且已有 traceCode，直接复用不重复保存。
+     * 返回 true 表示可以跳转结果页，false 表示无结果可保存。
      */
     fun generateQuote(): Boolean {
         val state = _uiState.value
         val result = state.result ?: return false
+
+        // 表单没变且已有工单号，直接跳结果页，不重复保存
+        if (state.form == state.lastSavedForm && state.traceCode != null) {
+            return true
+        }
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
@@ -473,6 +483,7 @@ class QuoteViewModel @Inject constructor(
                 if (response.isSuccessful) {
                     _uiState.value = _uiState.value.copy(
                         traceCode = response.body()!!.traceCode,
+                        lastSavedForm = state.form,
                         isLoading = false
                     )
                 } else {
@@ -495,12 +506,104 @@ class QuoteViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(errorMessage = null)
     }
 
+    fun clearSearchReady() {
+        _uiState.value = _uiState.value.copy(searchReady = false)
+    }
+
     fun clearTraceCode() {
-        _uiState.value = _uiState.value.copy(traceCode = null)
+        _uiState.value = _uiState.value.copy(traceCode = null, lastSavedForm = null)
     }
 
     fun toggleLanguage() {
         _uiState.value = _uiState.value.copy(isEnglish = !_uiState.value.isEnglish)
+    }
+
+    // ── 工单查询 ──
+
+    fun toggleSearch() {
+        val active = !_uiState.value.isSearchActive
+        _uiState.value = _uiState.value.copy(
+            isSearchActive = active,
+            searchFieldText = ""
+        )
+    }
+
+    fun updateSearchField(text: String) {
+        _uiState.value = _uiState.value.copy(searchFieldText = text)
+    }
+
+    /**
+     * 按工单编号查询后端记录，成功后构造 QuoteComputation 写入 state。
+     */
+    fun searchByTraceCode(code: String) {
+        val trimmed = code.trim()
+        if (trimmed.isEmpty()) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            try {
+                val response = apiService.getQuoteRecord(trimmed)
+                if (response.isSuccessful) {
+                    val record = response.body()!!
+                    val materialKey = MaterialKey.fromApiKey(record.materialKey) ?: MaterialKey.KRAFT_SMALL
+                    val materialCost = record.materialCost ?: 0.0
+                    val processCost = record.processCost ?: 0.0
+                    val specialFeesCost = record.specialFeesCost ?: 0.0
+                    val profitAmount = record.profitAmount ?: 0.0
+                    val extraFee = record.extraFee ?: 0.0
+                    val finalAmount = record.finalAmount ?: 0.0
+
+                    val computation = QuoteComputation(
+                        layouts = emptyMap(),
+                        areaM2 = 0.0,
+                        materialLabel = record.materialLabel ?: "",
+                        materialKey = materialKey,
+                        materialUnitPrice = record.materialUnitPrice ?: 0.0,
+                        chargeLines = emptyList(),
+                        subtotal = materialCost + processCost,
+                        afterExtraFee = materialCost + processCost + extraFee,
+                        profitAmount = profitAmount,
+                        finalAmount = finalAmount,
+                        specialFeesSum = specialFeesCost,
+                        markupTotal = finalAmount,
+                        totalWeight = record.totalWeight ?: 0.0,
+                        materialCost = materialCost,
+                        basicProcessCost = processCost,
+                        printProcessCost = 0.0
+                    )
+
+                    _uiState.value = _uiState.value.copy(
+                        result = computation,
+                        traceCode = record.traceCode,
+                        form = QuoteFormValues(
+                            length = record.length,
+                            width = record.width,
+                            height = record.height,
+                            orderQuantity = record.quantity,
+                            materialKey = materialKey
+                        ),
+                        lengthText = trimNumber(record.length),
+                        widthText = trimNumber(record.width),
+                        heightText = trimNumber(record.height),
+                        quantityText = record.quantity.toString(),
+                        isSearchActive = false,
+                        searchFieldText = "",
+                        searchReady = true,
+                        isLoading = false
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = "未找到工单记录",
+                        isLoading = false
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = "网络错误：${e.message}",
+                    isLoading = false
+                )
+            }
+        }
     }
 
     /**
@@ -517,7 +620,11 @@ class QuoteViewModel @Inject constructor(
             profitText = "",
             result = null,
             traceCode = null,
+            lastSavedForm = null,
             errorMessage = null,
+            isSearchActive = false,
+            searchFieldText = "",
+            searchReady = false,
             spotMatchEnabled = false,
             spotTolerance = QuoteUiState.DEFAULT_TOLERANCE,
             spotCategory = "kraft",

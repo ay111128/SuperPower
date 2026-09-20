@@ -68,6 +68,9 @@ interface ApiService {
 
     // ── 报价记录 ──
 
+    @GET("materials-api/quote-records/{traceCode}")
+    suspend fun getQuoteRecord(@Path("traceCode") traceCode: String): Response<QuoteRecordDetail>
+
     @POST("materials-api/quote-records")
     suspend fun saveQuoteRecord(@Body record: QuoteRecordRequest): Response<QuoteRecordResponse>
 
