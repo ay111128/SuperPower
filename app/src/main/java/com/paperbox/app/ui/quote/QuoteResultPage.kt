@@ -6,11 +6,9 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +17,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -84,6 +83,52 @@ internal fun QuoteResultPage(
 ) {
     val result = state.result ?: return
 
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val view = LocalView.current
+    val documentBounds = remember { mutableStateOf<Rect?>(null) }
+
+    fun captureDocument() {
+        val bounds = documentBounds.value ?: return
+        scope.launch {
+            try {
+                val fullBitmap = withContext(Dispatchers.Main) {
+                    view.drawToBitmap(Bitmap.Config.ARGB_8888)
+                }
+                val left = bounds.left.toInt().coerceAtLeast(0)
+                val top = bounds.top.toInt().coerceAtLeast(0)
+                val right = bounds.right.toInt().coerceAtMost(fullBitmap.width)
+                val bottom = bounds.bottom.toInt().coerceAtMost(fullBitmap.height)
+                val w = (right - left).coerceAtLeast(1)
+                val h = (bottom - top).coerceAtLeast(1)
+                val cropped = Bitmap.createBitmap(fullBitmap, left, top, w, h)
+
+                // 圆角处理（12dp）
+                val radiusPx = (12 * context.resources.displayMetrics.density).toInt()
+                val rounded = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(rounded)
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+                val path = android.graphics.Path()
+                path.addRoundRect(
+                    0f, 0f, w.toFloat(), h.toFloat(),
+                    radiusPx.toFloat(), radiusPx.toFloat(),
+                    android.graphics.Path.Direction.CW
+                )
+                canvas.clipPath(path)
+                canvas.drawBitmap(cropped, 0f, 0f, paint)
+
+                saveBitmapToGallery(context, rounded)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "已保存到相册", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "截图失败：${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -128,6 +173,17 @@ internal fun QuoteResultPage(
                     fontWeight = FontWeight.Bold
                 )
             }
+            // 下载截图按钮
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White.copy(alpha = 0.2f))
+                    .clickable { captureDocument() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("⬇", color = Color.White, fontSize = 18.sp)
+            }
         }
 
         Column(
@@ -138,7 +194,9 @@ internal fun QuoteResultPage(
                 .padding(horizontal = 0.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            QuoteDocumentSection(state, result, state.isEnglish)
+            QuoteDocumentSection(state, result, state.isEnglish) { rect ->
+                documentBounds.value = rect
+            }
             QuoteSummaryCard(state, result)
             QuoteBreakdownCard(state, result)
 
@@ -378,51 +436,25 @@ private val CardTextGray = Color(0xFF999999)
 private val CardTextDesc = Color(0xFF666666)
 private val CardTextDark = Color(0xFF333333)
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation, isEnglish: Boolean = false) {
+private fun QuoteDocumentSection(
+    state: QuoteUiState,
+    result: QuoteComputation,
+    isEnglish: Boolean = false,
+    onDocumentBounds: (Rect?) -> Unit = {}
+) {
     val now = Date()
     val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
     val enabledFees = state.form.specialFees.filter { it.enabled }
-
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val view = LocalView.current
-    val documentBounds = remember { mutableStateOf<Rect?>(null) }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .onGloballyPositioned { coordinates ->
-                documentBounds.value = coordinates.boundsInWindow()
+                onDocumentBounds(coordinates.boundsInWindow())
             }
             .clip(RoundedCornerShape(12.dp))
             .background(CardGray)
-            .combinedClickable(
-                onClick = {},
-                onDoubleClick = {
-                    val bounds = documentBounds.value ?: return@combinedClickable
-                    scope.launch {
-                        try {
-                            val fullBitmap = withContext(Dispatchers.Main) {
-                                view.drawToBitmap(Bitmap.Config.ARGB_8888)
-                            }
-                            val left = bounds.left.toInt().coerceAtLeast(0)
-                            val top = bounds.top.toInt().coerceAtLeast(0)
-                            val right = bounds.right.toInt().coerceAtMost(fullBitmap.width)
-                            val bottom = bounds.bottom.toInt().coerceAtMost(fullBitmap.height)
-                            val w = (right - left).coerceAtLeast(1)
-                            val h = (bottom - top).coerceAtLeast(1)
-                            val cropped = Bitmap.createBitmap(fullBitmap, left, top, w, h)
-                            saveBitmapToGallery(context, cropped)
-                        } catch (e: Exception) {
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(context, "截图失败：${e.message}", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    }
-                }
-            )
     ) {
         // ── 标题区域（绿色背景上方）──
         Column(
@@ -443,11 +475,26 @@ private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation, 
         // ── DescArea: 描述文字 ──
         CardDescArea(isEnglish)
 
-        // ── ColumnBar: 表头 ──
-        CardColumnBar(isEnglish)
-
-        // ── DataArea: 数据行 + 合计 ──
-        CardDataArea(state, result, enabledFees, isEnglish)
+        // ── 表头 + 数据区（连续竖线分割） ──
+        Box(modifier = Modifier.fillMaxWidth()) {
+            // 内容在下层
+            Column(modifier = Modifier.fillMaxWidth()) {
+                CardColumnBar(isEnglish)
+                CardDataArea(state, result, enabledFees, isEnglish)
+            }
+            // 连续竖线在上层
+            val lineColor = Color(0xFF999999)
+            val linePositions = listOf(52.dp, 143.dp, 229.dp, 275.dp, 321.dp)
+            linePositions.forEach { x ->
+                Box(
+                    modifier = Modifier
+                        .offset(x = x)
+                        .width(1.dp)
+                        .fillMaxHeight()
+                        .background(lineColor)
+                )
+            }
+        }
 
         // ── BottomSection: 联系信息 + 二维码 ──
         CardBottomSection(isEnglish)
@@ -534,15 +581,10 @@ private fun CardColumnBar(isEnglish: Boolean = false) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         CardHeaderText(if (isEnglish) "No." else "序号", 36.dp, TextAlign.Center)
-        CardDivider()
         CardHeaderText(if (isEnglish) "Product" else "产品名称", 90.dp, TextAlign.Center)
-        CardDivider()
         CardHeaderText(if (isEnglish) "Spec" else "规格", 85.dp, TextAlign.Center)
-        CardDivider()
         CardHeaderText(if (isEnglish) "Qty" else "数量", 45.dp, TextAlign.Center)
-        CardDivider()
         CardHeaderText(if (isEnglish) "Price" else "单价", 45.dp, TextAlign.Center)
-        CardDivider()
         CardHeaderText(if (isEnglish) "Amount" else "金额", 54.dp, TextAlign.Center)
     }
 }
@@ -650,19 +692,14 @@ private fun CardDataRow(
         ) {
             Text("$index", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CardTextDark,
                 textAlign = TextAlign.Center, modifier = Modifier.width(36.dp))
-            CardDivider()
             Text(name, fontSize = 10.sp, color = CardTextDark,
                 textAlign = TextAlign.Center, modifier = Modifier.width(90.dp))
-            CardDivider()
             Text(spec, fontSize = 10.sp, color = CardTextDark,
                 textAlign = TextAlign.Center, modifier = Modifier.width(85.dp))
-            CardDivider()
             Text(quantity, fontSize = 10.sp, color = CardTextDark,
                 textAlign = TextAlign.Center, modifier = Modifier.width(45.dp))
-            CardDivider()
             Text(unitPrice, fontSize = 10.sp, color = CardTextDark,
                 textAlign = TextAlign.Center, modifier = Modifier.width(45.dp))
-            CardDivider()
             Text(amount, fontSize = 10.sp, color = CardGreen,
                 textAlign = TextAlign.Center, modifier = Modifier.width(54.dp))
         }
