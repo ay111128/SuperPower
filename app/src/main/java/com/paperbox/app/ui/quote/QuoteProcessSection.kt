@@ -190,7 +190,7 @@ internal fun QuoteProcessGroups(state: QuoteUiState, vm: QuoteViewModel) {
             title = "印刷定制",
             treePrefix = "└─",
             rows = printRows,
-            defaultExpanded = true,
+            defaultExpanded = false,
             masterChecked = printRows.any { it.enabled },
             onToggleMaster = { vm.setPrintGroupEnabled(it) },
             onToggleRow = { row, on -> row.field?.let { vm.setProcessEnabled(it, on) } }
@@ -375,7 +375,10 @@ internal fun QuoteSpecialFeeSection(state: QuoteUiState, vm: QuoteViewModel) {
     val summary = if (enabledFees.isEmpty()) {
         if (fees.isEmpty()) "未添加" else "已全部关闭"
     } else {
-        enabledFees.joinToString(" + ") { "${it.name} ${trimNumber(it.amount)}元" }
+        enabledFees.joinToString(" + ") {
+            val specPart = if (it.spec.isNotBlank()) "（${it.spec}）" else ""
+            "${it.name}${specPart} ${trimNumber(it.amount)}元"
+        }
     }
 
     Column(
@@ -409,7 +412,11 @@ internal fun QuoteSpecialFeeSection(state: QuoteUiState, vm: QuoteViewModel) {
             ) {
                 // 点标签进编辑弹窗（改名 / 改金额 / 删除），别跟开关抢热区
                 Text(
-                    text = "$branch ${fee.name}（${trimNumber(fee.amount)} 元）",
+                    text = buildString {
+                        append("$branch ${fee.name}")
+                        if (fee.spec.isNotBlank()) append("（${fee.spec}）")
+                        append("（${trimNumber(fee.amount)} 元）")
+                    },
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     color = QuoteGray55,
@@ -443,9 +450,9 @@ internal fun QuoteSpecialFeeSection(state: QuoteUiState, vm: QuoteViewModel) {
         SpecialFeeDialog(
             initial = target,
             onDismiss = { adding = false; editing = null },
-            onConfirm = { name, amount ->
-                if (target == null) vm.addSpecialFee(name, amount)
-                else vm.updateSpecialFee(target.id, name, amount)
+            onConfirm = { name, spec, amount ->
+                if (target == null) vm.addSpecialFee(name, spec, amount)
+                else vm.updateSpecialFee(target.id, name, spec, amount)
                 adding = false
                 editing = null
             },
@@ -463,11 +470,12 @@ internal fun QuoteSpecialFeeSection(state: QuoteUiState, vm: QuoteViewModel) {
 private fun SpecialFeeDialog(
     initial: SpecialFee?,
     onDismiss: () -> Unit,
-    onConfirm: (String, Double) -> Unit,
+    onConfirm: (String, String, Double) -> Unit,
     onDelete: (() -> Unit)?
 ) {
     // 用 id 做 key，换一条记录编辑时输入框要重新初始化
     var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
+    var spec by remember(initial?.id) { mutableStateOf(initial?.spec.orEmpty()) }
     var amountText by remember(initial?.id) {
         mutableStateOf(initial?.amount?.let { trimNumber(it) } ?: "")
     }
@@ -485,6 +493,13 @@ private fun SpecialFeeDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
+                    value = spec,
+                    onValueChange = { spec = it },
+                    label = { Text("规格") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
                     value = amountText,
                     onValueChange = { if (FEE_AMOUNT_INPUT.matches(it)) amountText = it },
                     label = { Text("金额（元）") },
@@ -495,7 +510,7 @@ private fun SpecialFeeDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name, amountText.toDoubleOrNull() ?: 0.0) }) {
+            TextButton(onClick = { onConfirm(name, spec, amountText.toDoubleOrNull() ?: 0.0) }) {
                 Text("保存", color = QuoteGreen, fontWeight = FontWeight.SemiBold)
             }
         },

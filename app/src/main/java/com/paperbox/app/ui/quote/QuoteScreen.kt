@@ -114,6 +114,21 @@ fun QuoteScreen(
                                 }
                             }
                         )
+                        // 搜索按钮：点击即查询
+                        IconButton(
+                            onClick = {
+                                focusManager.clearFocus()
+                                viewModel.searchByTraceCode(state.searchFieldText)
+                            },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "搜索",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                         IconButton(
                             onClick = { viewModel.toggleSearch() },
                             modifier = Modifier.size(40.dp)
@@ -146,21 +161,53 @@ fun QuoteScreen(
                         }
                     }
                 }
+                // ── 表单实时摘要：输入了什么就显示什么 ──
+                val hasAnyInput = state.lengthText.isNotEmpty() || state.widthText.isNotEmpty() ||
+                        state.heightText.isNotEmpty() || state.quantityText.isNotEmpty()
+                if (hasAnyInput) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                    ) {
+                        // 尺寸行：没输入的不显示
+                        val parts = mutableListOf<String>()
+                        if (state.lengthText.isNotEmpty()) parts.add(state.lengthText)
+                        if (state.widthText.isNotEmpty()) parts.add(state.widthText)
+                        if (state.heightText.isNotEmpty()) parts.add(state.heightText)
+                        val sizeLine = parts.joinToString(" × ")
+                        val qtyLine = if (state.quantityText.isNotEmpty()) "  数量${state.quantityText}" else ""
+                        if (sizeLine.isNotEmpty() || qtyLine.isNotEmpty()) {
+                            Text(
+                                text = sizeLine + qtyLine,
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 12.sp,
+                                maxLines = 1
+                            )
+                        }
+                        // 价格行：有计算结果才显示
+                        if (state.result != null && state.form.orderQuantity > 0) {
+                            val unitPrice = state.result.finalAmount / state.form.orderQuantity
+                            Text(
+                                text = "单价 ${trimNumber(unitPrice)} 元  总共 ${trimNumber(state.result.finalAmount)} 元",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
             }
         }
     ) { padding ->
-        Box(
+        // 表单区：imePadding 让内容跟着键盘上移，底部 96dp 留给 FAB
+        Column(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .imePadding()
-        ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
                 .background(Color.White)
+                .imePadding()
                 .verticalScroll(scrollState)
-                // 设计稿的 Form Area 是 padding=[20,16]，在 pen 里是「上下 20、左右 16」
                 .padding(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
@@ -210,17 +257,19 @@ fun QuoteScreen(
             Spacer(Modifier.height(96.dp))
         }
 
-            // 悬浮按钮放在 Box 里，imePadding 让它跟着键盘上移
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 24.dp)
-            ) {
-                QuoteGenerateFab(
-                    enabled = state.result != null,
-                    onClick = onGenerateQuote
-                )
-            }
+        // 悬浮按钮：单独放在 imePadding 的 Box 里，紧跟键盘上移，不留灰缝
+        Box(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .imePadding()
+                .padding(end = 16.dp, bottom = 24.dp),
+            contentAlignment = Alignment.BottomEnd
+        ) {
+            QuoteGenerateFab(
+                enabled = state.result != null,
+                onClick = onGenerateQuote
+            )
         }
     }
 }

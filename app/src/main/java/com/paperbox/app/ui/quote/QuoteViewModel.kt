@@ -322,11 +322,12 @@ class QuoteViewModel @Inject constructor(
 
     // ── 附加费（用户手动增删）──
 
-    fun addSpecialFee(name: String, amount: Double) {
+    fun addSpecialFee(name: String, spec: String, amount: Double) {
         val state = _uiState.value
         val fee = SpecialFee(
             id = UUID.randomUUID().toString(),
             name = name.ifBlank { "附加费" },
+            spec = spec,
             amount = amount,
             enabled = true
         )
@@ -334,10 +335,10 @@ class QuoteViewModel @Inject constructor(
         recalculate()
     }
 
-    fun updateSpecialFee(id: String, name: String, amount: Double) {
+    fun updateSpecialFee(id: String, name: String, spec: String, amount: Double) {
         val state = _uiState.value
         val updated = state.form.specialFees.map {
-            if (it.id == id) it.copy(name = name.ifBlank { it.name }, amount = amount) else it
+            if (it.id == id) it.copy(name = name.ifBlank { it.name }, spec = spec, amount = amount) else it
         }
         _uiState.value = state.copy(form = state.form.copy(specialFees = updated))
         recalculate()
@@ -481,8 +482,10 @@ class QuoteViewModel @Inject constructor(
                 )
                 val response = apiService.saveQuoteRecord(request)
                 if (response.isSuccessful) {
+                    val savedTraceCode = response.body()!!.traceCode
+                    android.util.Log.d("QuoteVM", "保存成功 traceCode=$savedTraceCode")
                     _uiState.value = _uiState.value.copy(
-                        traceCode = response.body()!!.traceCode,
+                        traceCode = savedTraceCode,
                         lastSavedForm = state.form,
                         isLoading = false
                     )
@@ -542,6 +545,7 @@ class QuoteViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             try {
+                android.util.Log.d("QuoteVM", "搜索 traceCode=$trimmed")
                 val response = apiService.getQuoteRecord(trimmed)
                 if (response.isSuccessful) {
                     val record = response.body()!!
@@ -592,8 +596,9 @@ class QuoteViewModel @Inject constructor(
                         isLoading = false
                     )
                 } else {
+                    android.util.Log.w("QuoteVM", "搜索失败 HTTP ${response.code()} body=${response.errorBody()?.string()}")
                     _uiState.value = _uiState.value.copy(
-                        errorMessage = "未找到工单记录",
+                        errorMessage = "未找到工单（HTTP ${response.code()}）",
                         isLoading = false
                     )
                 }
