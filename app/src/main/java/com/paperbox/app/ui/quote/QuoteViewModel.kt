@@ -545,7 +545,7 @@ class QuoteViewModel @Inject constructor(
                 val response = apiService.getQuoteRecord(trimmed)
                 if (response.isSuccessful) {
                     val record = response.body()!!
-                    val materialKey = MaterialKey.fromApiKey(record.materialKey) ?: MaterialKey.KRAFT_SMALL
+                    val materialKey = record.materialKey?.let { MaterialKey.fromApiKey(it) } ?: MaterialKey.KRAFT_SMALL
                     val materialCost = record.materialCost ?: 0.0
                     val processCost = record.processCost ?: 0.0
                     val specialFeesCost = record.specialFeesCost ?: 0.0
