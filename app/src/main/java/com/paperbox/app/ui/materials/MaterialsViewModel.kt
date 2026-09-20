@@ -100,10 +100,10 @@ class MaterialsViewModel @Inject constructor(
 
     fun loadMaterials(offset: Int = 0) {
         viewModelScope.launch {
-            if (offset == 0) {
-                _uiState.value = _uiState.value.copy(isLoading = true)
-            }
             try {
+                if (offset == 0) {
+                    _uiState.value = _uiState.value.copy(isLoading = true)
+                }
                 val state = _uiState.value
                 val tagsParam = state.selectedTags.joinToString(",").ifBlank { null }
                 val response = apiService.getMaterials(
@@ -131,7 +131,7 @@ class MaterialsViewModel @Inject constructor(
                     else state.materials + filtered
                     _uiState.value = _uiState.value.copy(
                         materials = newMaterials,
-                        allMaterials = if (_uiState.value.isSearchActive) body.items else _uiState.value.allMaterials,
+                        allMaterials = if (state.isSearchActive) body.items else state.allMaterials,
                         total = body.total,
                         hasMore = offset + body.items.size < body.total,
                         isLoading = false,
@@ -139,8 +139,14 @@ class MaterialsViewModel @Inject constructor(
                     )
                     // 异步加载视频缩略图
                     loadVideoThumbnails(filtered)
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isLoadingMore = false
+                    )
                 }
             } catch (e: Exception) {
+                Log.e("MaterialsVM", "Load materials failed: ${e.message}")
                 _uiState.value = _uiState.value.copy(
                     errorMessage = "加载失败：${e.message}",
                     isLoading = false,
@@ -151,9 +157,14 @@ class MaterialsViewModel @Inject constructor(
     }
 
     fun loadMore() {
-        if (_uiState.value.isLoadingMore || !_uiState.value.hasMore) return
-        _uiState.value = _uiState.value.copy(isLoadingMore = true)
-        loadMaterials(offset = _uiState.value.materials.size)
+        try {
+            val currentState = _uiState.value
+            if (currentState.isLoadingMore || !currentState.hasMore) return
+            _uiState.value = currentState.copy(isLoadingMore = true)
+            loadMaterials(offset = currentState.materials.size)
+        } catch (e: Exception) {
+            Log.e("MaterialsVM", "Load more failed: ${e.message}")
+        }
     }
 
     /** 从服务端加载筛选计数（颜色/标签/类型） */
@@ -191,12 +202,13 @@ class MaterialsViewModel @Inject constructor(
                 cacheDir.mkdirs()
 
                 for (video in videos) {
+                    var retriever: android.media.MediaMetadataRetriever? = null
                     try {
                         // 1. 先检查磁盘缓存
                         val cacheFile = File(cacheDir, "${video.id}.jpg")
                         if (cacheFile.exists()) {
                             val cachedBitmap = android.graphics.BitmapFactory.decodeFile(cacheFile.absolutePath)
-                            if (cachedBitmap != null) {
+                            if (cachedBitmap != null && !cachedBitmap.isRecycled) {
                                 thumbnails[video.id] = cachedBitmap
                                 Log.d("MaterialsVM", "Thumbnail loaded from cache: ${video.id}")
                                 continue
@@ -204,11 +216,11 @@ class MaterialsViewModel @Inject constructor(
                         }
 
                         // 2. 缓存未命中，从网络提取
-                        val retriever = android.media.MediaMetadataRetriever()
+                        retriever = android.media.MediaMetadataRetriever()
                         val url = "${BuildConfig.API_BASE_URL}/materials-api/materials/${video.id}/file"
                         retriever.setDataSource(url, headers)
-                        val bitmap = retriever.frameAtTime
-                        if (bitmap != null) {
+                        val bitmap = retriever.getFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                        if (bitmap != null && !bitmap.isRecycled) {
                             thumbnails[video.id] = bitmap
                             // 3. 保存到磁盘缓存
                             try {
@@ -220,9 +232,12 @@ class MaterialsViewModel @Inject constructor(
                                 Log.w("MaterialsVM", "Failed to cache thumbnail: ${e.message}")
                             }
                         }
-                        retriever.release()
                     } catch (e: Exception) {
                         Log.w("MaterialsVM", "Thumbnail failed for ${video.id}: ${e.message}")
+                    } finally {
+                        try {
+                            retriever?.release()
+                        } catch (_: Exception) {}
                     }
                 }
             }
@@ -310,52 +325,68 @@ class MaterialsViewModel @Inject constructor(
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
 
     fun toggleSearch() {
-        val current = _uiState.value
-        if (current.isSearchActive) {
-            // 关闭搜索：提交搜索词并重新加载
-            dismissSearch()
-        } else {
-            // 打开搜索：备份当前数据以便实时过滤
-            _uiState.value = current.copy(
-                isSearchActive = true,
-                searchFieldText = current.searchQuery,
-                allMaterials = current.materials
-            )
+        try {
+            val current = _uiState.value
+            if (current.isSearchActive) {
+                // 关闭搜索：提交搜索词并重新加载
+                dismissSearch()
+            } else {
+                // 打开搜索：备份当前数据以便实时过滤
+                _uiState.value = current.copy(
+                    isSearchActive = true,
+                    searchFieldText = current.searchQuery,
+                    allMaterials = current.materials.toList()
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("MaterialsVM", "Toggle search failed: ${e.message}")
         }
     }
 
     fun updateSearchField(text: String) {
-        _uiState.value = _uiState.value.copy(searchFieldText = text)
-        // 实时客户端过滤（从备份数据过滤，避免级联过滤）
-        val baseMaterials = _uiState.value.allMaterials
-        if (text.isBlank()) {
-            _uiState.value = _uiState.value.copy(materials = baseMaterials)
-        } else {
-            val query = text.lowercase()
-            _uiState.value = _uiState.value.copy(
-                materials = baseMaterials.filter { m ->
+        try {
+            // 实时客户端过滤（从备份数据过滤，避免级联过滤）
+            val currentState = _uiState.value
+            val baseMaterials = currentState.allMaterials
+            val filteredMaterials = if (text.isBlank()) {
+                baseMaterials
+            } else {
+                val query = text.lowercase()
+                baseMaterials.filter { m ->
                     m.name.lowercase().contains(query) ||
                     m.tags.any { it.lowercase().contains(query) }
                 }
+            }
+            _uiState.value = currentState.copy(
+                searchFieldText = text,
+                materials = filteredMaterials
             )
-        }
-        // 防抖：500ms 后向服务器请求更多结果
-        searchDebounceJob?.cancel()
-        searchDebounceJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(500)
-            _uiState.value = _uiState.value.copy(searchQuery = text)
-            loadMaterials()
+            // 防抖：500ms 后向服务器请求更多结果
+            searchDebounceJob?.cancel()
+            searchDebounceJob = viewModelScope.launch {
+                kotlinx.coroutines.delay(500)
+                _uiState.value = _uiState.value.copy(searchQuery = text)
+                loadMaterials()
+            }
+        } catch (e: Exception) {
+            Log.e("MaterialsVM", "Search field update failed: ${e.message}")
         }
     }
 
     fun dismissSearch() {
-        searchDebounceJob?.cancel()
-        _uiState.value = _uiState.value.copy(
-            isSearchActive = false,
-            searchFieldText = "",
-            searchQuery = ""
-        )
-        loadMaterials()
+        try {
+            searchDebounceJob?.cancel()
+            searchDebounceJob = null
+            _uiState.value = _uiState.value.copy(
+                isSearchActive = false,
+                searchFieldText = "",
+                searchQuery = "",
+                materials = _uiState.value.allMaterials
+            )
+            loadMaterials()
+        } catch (e: Exception) {
+            Log.e("MaterialsVM", "Dismiss search failed: ${e.message}")
+        }
     }
 
     fun showUploadSheet() {

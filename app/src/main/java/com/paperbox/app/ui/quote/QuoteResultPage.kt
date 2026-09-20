@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,6 +43,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInWindow
@@ -52,6 +56,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.drawToBitmap
+import com.paperbox.app.R
 import com.paperbox.app.domain.model.ChargeLine
 import com.paperbox.app.domain.model.QuoteComputation
 import kotlinx.coroutines.Dispatchers
@@ -332,15 +337,25 @@ private fun QuoteLineRow(line: ChargeLine) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  报价单文档区域
+//  报价单文档区域（新设计：报价卡片.pen）
 // ══════════════════════════════════════════════════════════════
+
+// 设计稿色值
+private val CardGreen = Color(0xFF1B8016)
+private val CardGreenLight = Color(0xFFB3F2B9)
+private val CardGray = Color(0xFFE3E3E3)
+private val CardDescBg = Color(0xFFF5F5F5)
+private val CardRowAlt = Color(0xFFF8FDF8)
+private val CardTotalBg = Color(0xFFF0F7F0)
+private val CardTextGray = Color(0xFF999999)
+private val CardTextDesc = Color(0xFF666666)
+private val CardTextDark = Color(0xFF333333)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation) {
     val now = Date()
     val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
-    val timeFormat = SimpleDateFormat("HH:mm", Locale.CHINA)
     val enabledFees = state.form.specialFees.filter { it.enabled }
 
     val context = LocalContext.current
@@ -354,7 +369,8 @@ private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation) 
             .onGloballyPositioned { coordinates ->
                 documentBounds.value = coordinates.boundsInWindow()
             }
-            .border(1.dp, QuoteTitle.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(CardGray)
             .combinedClickable(
                 onClick = {},
                 onDoubleClick = {
@@ -380,150 +396,280 @@ private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation) 
                     }
                 }
             )
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // ── 上：标题 + 日期时间 + 编号 ──
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                "小鱼包装报价单",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = QuoteTitle
-            )
-            Text(
-                "报价日期：${dateFormat.format(now)}",
-                fontSize = 12.sp,
-                color = QuoteGray66
-            )
-            Text(
-                "报价时间：${timeFormat.format(now)}",
-                fontSize = 12.sp,
-                color = QuoteGray66
-            )
-            state.traceCode?.let { code ->
-                Text(
-                    "报价编号：$code",
-                    fontSize = 12.sp,
-                    color = QuoteGray66
-                )
-            }
-        }
+        // ── Header: 绿色顶栏 ──
+        CardHeader(state, dateFormat.format(now))
 
-        HorizontalDivider(color = QuoteFieldStroke)
+        // ── DescArea: 标题 + 描述 ──
+        CardDescArea()
 
-        // ── 中：表格 ──
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
-        ) {
-            // 表头
-            DocumentTableRow(
-                col1 = "品名", col2 = "规格", col3 = "数量",
-                col4 = "单价", col5 = "金额",
-                isHeader = true
-            )
-            HorizontalDivider(color = QuoteFieldStroke)
+        // ── ColumnBar: 表头 ──
+        CardColumnBar()
 
-            // 主品行
-            val unitPrice = if (state.form.orderQuantity > 0)
-                result.finalAmount / state.form.orderQuantity else 0.0
-            val spec = "${trimNumber(state.form.length)}×${trimNumber(state.form.width)}×${trimNumber(state.form.height)}cm"
-            DocumentTableRow(
-                col1 = result.materialLabel,
-                col2 = spec,
-                col3 = "${state.form.orderQuantity}",
-                col4 = moneyPlain(unitPrice),
-                col5 = money(result.finalAmount)
-            )
+        // ── DataArea: 数据行 + 合计 ──
+        CardDataArea(state, result, enabledFees)
 
-            // 附加费行
-            enabledFees.forEach { fee ->
-                HorizontalDivider(color = QuoteFieldStroke)
-                DocumentTableRow(
-                    col1 = fee.name,
-                    col2 = "-",
-                    col3 = "-",
-                    col4 = money(fee.amount),
-                    col5 = money(fee.amount)
-                )
-            }
-        }
-
-        HorizontalDivider(color = QuoteFieldStroke)
-
-        // ── 下：公司信息 + 二维码 ──
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
-        ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(3.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                InfoRow("公司", "小鱼包装有限公司")
-                InfoRow("联系人", "张经理")
-                InfoRow("电话", "138-0000-0000")
-                InfoRow("地址", "广东省东莞市xxx路xxx号")
-            }
-
-            Spacer(Modifier.width(12.dp))
-
-            // 二维码占位
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .border(1.dp, QuoteFieldStroke, RoundedCornerShape(6.dp))
-                    .background(QuoteRowBg, RoundedCornerShape(6.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("微信\n二维码", fontSize = 10.sp, color = QuoteMuted, textAlign = TextAlign.Center)
-            }
-        }
+        // ── BottomSection: 联系信息 + 二维码 ──
+        CardBottomSection()
     }
 }
 
 @Composable
-private fun DocumentTableRow(
-    col1: String, col2: String, col3: String,
-    col4: String, col5: String,
-    isHeader: Boolean = false
-) {
-    val fontWeight = if (isHeader) FontWeight.SemiBold else FontWeight.Normal
-    val textColor = if (isHeader) QuoteGray66 else QuoteTitle
-    val bgColor = if (isHeader) QuoteRowBg else Color.Transparent
-    val fontSize = if (isHeader) 11.sp else 12.sp
-
+private fun CardHeader(state: QuoteUiState, dateStr: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(bgColor)
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+            .background(CardGreen)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(col1, fontSize = fontSize, fontWeight = fontWeight, color = textColor,
-            modifier = Modifier.weight(2.5f), maxLines = 1)
-        Text(col2, fontSize = fontSize, fontWeight = fontWeight, color = textColor,
-            modifier = Modifier.weight(2f), maxLines = 1)
-        Text(col3, fontSize = fontSize, fontWeight = fontWeight, color = textColor,
-            modifier = Modifier.weight(1f), textAlign = TextAlign.End, maxLines = 1)
-        Text(col4, fontSize = fontSize, fontWeight = fontWeight, color = textColor,
-            modifier = Modifier.weight(1.5f), textAlign = TextAlign.End, maxLines = 1)
-        Text(col5, fontSize = fontSize, fontWeight = fontWeight, color = textColor,
-            modifier = Modifier.weight(1.5f), textAlign = TextAlign.End, maxLines = 1)
+        // LogoBox
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(CardGreenLight),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.compose.foundation.Image(
+                painter = painterResource(id = R.drawable.company_logo),
+                contentDescription = "公司Logo",
+                modifier = Modifier.size(44.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+
+        // 公司信息
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text("广州小鱼包装", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("专业包装解决方案", fontSize = 9.sp, color = CardGreenLight)
+        }
+
+        // 右侧日期 + 编号
+        Column(
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("报价日期：", fontSize = 9.sp, color = Color.White)
+                Text(dateStr, fontSize = 9.sp, color = Color.White)
+            }
+            state.traceCode?.let { code ->
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("工单编号：", fontSize = 9.sp, color = Color.White)
+                    Text(code, fontSize = 9.sp, color = Color.White)
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun InfoRow(label: String, value: String) {
-    Row {
-        Text("$label：", fontSize = 11.sp, color = QuoteGray66)
-        Text(value, fontSize = 11.sp, color = QuoteTitle)
+private fun CardDescArea() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CardDescBg)
+            .padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("报 价 单", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CardGreen)
+        Text("QUOTATION", fontSize = 11.sp, color = CardTextGray)
+        Spacer(Modifier.height(2.dp))
+        Text(
+            "感谢您对本公司的信任，以下是我们为您提供的报价，请您参考：",
+            fontSize = 9.sp,
+            color = CardTextDesc
+        )
+    }
+}
+
+@Composable
+private fun CardColumnBar() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(30.dp)
+            .background(CardGreen)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CardHeaderText("序号", 36.dp, TextAlign.Center)
+        CardDivider()
+        CardHeaderText("产品名称", 90.dp, TextAlign.Start)
+        CardDivider()
+        CardHeaderText("规格", 85.dp, TextAlign.Start)
+        CardDivider()
+        CardHeaderText("数量", 45.dp, TextAlign.End)
+        CardDivider()
+        CardHeaderText("单价", 45.dp, TextAlign.End)
+        CardDivider()
+        CardHeaderText("金额", 54.dp, TextAlign.End)
+    }
+}
+
+@Composable
+private fun RowScope.CardHeaderText(text: String, width: Dp, align: TextAlign) {
+    Text(
+        text,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.White,
+        textAlign = align,
+        modifier = Modifier.width(width)
+    )
+}
+
+@Composable
+private fun RowScope.CardDivider() {
+    Box(
+        modifier = Modifier
+            .width(1.dp)
+            .height(14.dp)
+            .background(Color.White.copy(alpha = 0.3f))
+    )
+}
+
+@Composable
+private fun CardDataArea(
+    state: QuoteUiState,
+    result: QuoteComputation,
+    enabledFees: List<com.paperbox.app.domain.model.SpecialFee>
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+    ) {
+        // 主品行
+        val unitPrice = if (state.form.orderQuantity > 0)
+            result.finalAmount / state.form.orderQuantity else 0.0
+        val spec = "${trimNumber(state.form.length)}×${trimNumber(state.form.width)}×${trimNumber(state.form.height)}mm"
+
+        CardDataRow(
+            index = 1,
+            name = result.materialLabel,
+            spec = spec,
+            quantity = "${state.form.orderQuantity}",
+            unitPrice = moneyPlain(unitPrice),
+            amount = money(result.finalAmount),
+            isAlt = true
+        )
+
+        // 附加费行
+        enabledFees.forEachIndexed { index, fee ->
+            CardDataRow(
+                index = index + 2,
+                name = fee.name,
+                spec = "-",
+                quantity = "-",
+                unitPrice = money(fee.amount),
+                amount = money(fee.amount),
+                isAlt = (index + 2) % 2 == 0
+            )
+        }
+
+        // 合计行
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(36.dp)
+                .background(CardTotalBg)
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("合计金额：", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CardTextDark)
+            Text(money(result.finalAmount), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CardGreen)
+        }
+    }
+}
+
+@Composable
+private fun CardDataRow(
+    index: Int,
+    name: String,
+    spec: String,
+    quantity: String,
+    unitPrice: String,
+    amount: String,
+    isAlt: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(38.dp)
+            .background(if (isAlt) CardRowAlt else Color.White)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("$index", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CardTextDark,
+            textAlign = TextAlign.Center, modifier = Modifier.width(36.dp))
+        Text(name, fontSize = 10.sp, color = CardTextDark,
+            modifier = Modifier.width(90.dp), maxLines = 1)
+        Text(spec, fontSize = 10.sp, color = CardTextDark,
+            modifier = Modifier.width(85.dp), maxLines = 1)
+        Text(quantity, fontSize = 10.sp, color = CardTextDark,
+            textAlign = TextAlign.End, modifier = Modifier.width(45.dp))
+        Text(unitPrice, fontSize = 10.sp, color = CardTextDark,
+            textAlign = TextAlign.End, modifier = Modifier.width(45.dp))
+        Text(amount, fontSize = 10.sp, color = CardGreen,
+            textAlign = TextAlign.End, modifier = Modifier.width(54.dp))
+    }
+}
+
+@Composable
+private fun CardBottomSection() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(127.dp)
+            .background(CardGreen)
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // 联系信息
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text("联系我们", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            CardInfoRow("联系人：", "吴小姐")
+            CardInfoRow("电话：", "13570315323")
+            CardInfoRow("微信：", "xbrody")
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("地址：", fontSize = 9.sp, color = CardGreenLight)
+                Text("广东省广州市增城区新塘镇富源路35号", fontSize = 9.sp, color = Color.White)
+            }
+        }
+
+        // 二维码
+        Box(
+            modifier = Modifier
+                .size(110.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.compose.foundation.Image(
+                painter = painterResource(id = R.drawable.wechat_qr),
+                contentDescription = "微信二维码",
+                modifier = Modifier.size(100.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+    }
+}
+
+@Composable
+private fun CardInfoRow(label: String, value: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, fontSize = 9.sp, color = CardGreenLight)
+        Text(value, fontSize = 9.sp, color = Color.White)
     }
 }
 
