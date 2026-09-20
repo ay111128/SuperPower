@@ -186,10 +186,11 @@ fun QuoteScreen(
                             )
                         }
                         // 价格行：有计算结果才显示
-                        if (state.result != null && state.form.orderQuantity > 0) {
-                            val unitPrice = state.result.finalAmount / state.form.orderQuantity
+                        val computation = state.result
+                        if (computation != null && state.form.orderQuantity > 0) {
+                            val unitPrice = computation.finalAmount / state.form.orderQuantity
                             Text(
-                                text = "单价 ${trimNumber(unitPrice)} 元  总共 ${trimNumber(state.result.finalAmount)} 元",
+                                text = "单价 ${trimNumber(unitPrice)} 元  总共 ${trimNumber(computation.finalAmount)} 元",
                                 color = Color.White.copy(alpha = 0.7f),
                                 fontSize = 11.sp,
                                 maxLines = 1
