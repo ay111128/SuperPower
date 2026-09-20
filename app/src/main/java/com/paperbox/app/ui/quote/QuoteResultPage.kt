@@ -80,7 +80,8 @@ internal fun QuoteResultPage(
     onBack: () -> Unit,
     onSave: () -> Unit,
     onClearTraceCode: () -> Unit,
-    onClearError: () -> Unit
+    onClearError: () -> Unit,
+    onToggleLanguage: () -> Unit
 ) {
     val result = state.result ?: return
 
@@ -97,12 +98,36 @@ internal fun QuoteResultPage(
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .height(62.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("报价结果", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            // 左侧返回按钮
             IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
-                Text("✕", color = Color.White, fontSize = 18.sp)
+                Text("←", color = Color.White, fontSize = 20.sp)
+            }
+            // 中间标题
+            Text(
+                "报价结果",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center
+            )
+            // 右侧中英文切换按钮
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White.copy(alpha = 0.2f))
+                    .clickable { onToggleLanguage() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    if (state.isEnglish) "中" else "EN",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
 
@@ -114,7 +139,7 @@ internal fun QuoteResultPage(
                 .padding(horizontal = 0.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            QuoteDocumentSection(state, result)
+            QuoteDocumentSection(state, result, state.isEnglish)
             QuoteSummaryCard(state, result)
             QuoteBreakdownCard(state, result)
 
@@ -356,7 +381,7 @@ private val CardTextDark = Color(0xFF333333)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation) {
+private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation, isEnglish: Boolean = false) {
     val now = Date()
     val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
     val enabledFees = state.form.specialFees.filter { it.enabled }
@@ -409,29 +434,29 @@ private fun QuoteDocumentSection(state: QuoteUiState, result: QuoteComputation) 
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text("报 价 单", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CardGreen)
+            Text(if (isEnglish) "QUOTATION" else "报 价 单", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CardGreen)
             Text("QUOTATION", fontSize = 11.sp, color = CardTextGray)
         }
 
         // ── Header: 绿色顶栏 ──
-        CardHeader(state, dateFormat.format(now))
+        CardHeader(state, dateFormat.format(now), isEnglish)
 
         // ── DescArea: 描述文字 ──
-        CardDescArea()
+        CardDescArea(isEnglish)
 
         // ── ColumnBar: 表头 ──
-        CardColumnBar()
+        CardColumnBar(isEnglish)
 
         // ── DataArea: 数据行 + 合计 ──
-        CardDataArea(state, result, enabledFees)
+        CardDataArea(state, result, enabledFees, isEnglish)
 
         // ── BottomSection: 联系信息 + 二维码 ──
-        CardBottomSection()
+        CardBottomSection(isEnglish)
     }
 }
 
 @Composable
-private fun CardHeader(state: QuoteUiState, dateStr: String) {
+private fun CardHeader(state: QuoteUiState, dateStr: String, isEnglish: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -444,15 +469,14 @@ private fun CardHeader(state: QuoteUiState, dateStr: String) {
         Box(
             modifier = Modifier
                 .size(48.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(CardGreenLight),
+                .clip(RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center
         ) {
             androidx.compose.foundation.Image(
                 painter = painterResource(id = R.drawable.company_logo),
                 contentDescription = "公司Logo",
-                modifier = Modifier.size(44.dp),
-                contentScale = ContentScale.Fit
+                modifier = Modifier.size(48.dp),
+                contentScale = ContentScale.Crop
             )
         }
 
@@ -461,8 +485,8 @@ private fun CardHeader(state: QuoteUiState, dateStr: String) {
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text("广州小鱼包装", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text("专业包装解决方案", fontSize = 9.sp, color = CardGreenLight)
+            Text(if (isEnglish) "Guangzhou Xiaoyu Packaging" else "广州小鱼包装", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(if (isEnglish) "Professional Packaging Solutions" else "专业包装解决方案", fontSize = 9.sp, color = CardGreenLight)
         }
 
         // 右侧日期 + 编号
@@ -470,12 +494,12 @@ private fun CardHeader(state: QuoteUiState, dateStr: String) {
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("报价日期：", fontSize = 9.sp, color = Color.White)
+                Text(if (isEnglish) "Date: " else "报价日期：", fontSize = 9.sp, color = Color.White)
                 Text(dateStr, fontSize = 9.sp, color = Color.White)
             }
             state.traceCode?.let { code ->
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("工单编号：", fontSize = 9.sp, color = Color.White)
+                    Text(if (isEnglish) "Order No. " else "工单编号：", fontSize = 9.sp, color = Color.White)
                     Text(code, fontSize = 9.sp, color = Color.White)
                 }
             }
@@ -484,7 +508,7 @@ private fun CardHeader(state: QuoteUiState, dateStr: String) {
 }
 
 @Composable
-private fun CardDescArea() {
+private fun CardDescArea(isEnglish: Boolean = false) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -493,7 +517,7 @@ private fun CardDescArea() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            "感谢您对本公司的信任，以下是我们为您提供的报价，请您参考：",
+            if (isEnglish) "Thank you for your trust. Please find our quotation below:" else "感谢您对本公司的信任，以下是我们为您提供的报价，请您参考：",
             fontSize = 9.sp,
             color = CardTextDesc
         )
@@ -501,7 +525,7 @@ private fun CardDescArea() {
 }
 
 @Composable
-private fun CardColumnBar() {
+private fun CardColumnBar(isEnglish: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -510,17 +534,17 @@ private fun CardColumnBar() {
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        CardHeaderText("序号", 36.dp, TextAlign.Center)
+        CardHeaderText(if (isEnglish) "No." else "序号", 36.dp, TextAlign.Center)
         CardDivider()
-        CardHeaderText("产品名称", 90.dp, TextAlign.Center)
+        CardHeaderText(if (isEnglish) "Product" else "产品名称", 90.dp, TextAlign.Center)
         CardDivider()
-        CardHeaderText("规格", 85.dp, TextAlign.Center)
+        CardHeaderText(if (isEnglish) "Spec" else "规格", 85.dp, TextAlign.Center)
         CardDivider()
-        CardHeaderText("数量", 45.dp, TextAlign.Center)
+        CardHeaderText(if (isEnglish) "Qty" else "数量", 45.dp, TextAlign.Center)
         CardDivider()
-        CardHeaderText("单价", 45.dp, TextAlign.Center)
+        CardHeaderText(if (isEnglish) "Price" else "单价", 45.dp, TextAlign.Center)
         CardDivider()
-        CardHeaderText("金额", 54.dp, TextAlign.Center)
+        CardHeaderText(if (isEnglish) "Amount" else "金额", 54.dp, TextAlign.Center)
     }
 }
 
@@ -542,7 +566,7 @@ private fun RowScope.CardDivider() {
         modifier = Modifier
             .width(1.dp)
             .fillMaxHeight()
-            .background(Color(0xFFBBBBBB))
+            .background(Color(0xFF999999))
     )
 }
 
@@ -550,7 +574,8 @@ private fun RowScope.CardDivider() {
 private fun CardDataArea(
     state: QuoteUiState,
     result: QuoteComputation,
-    enabledFees: List<com.paperbox.app.domain.model.SpecialFee>
+    enabledFees: List<com.paperbox.app.domain.model.SpecialFee>,
+    isEnglish: Boolean = false
 ) {
     Column(
         modifier = Modifier
@@ -595,7 +620,7 @@ private fun CardDataArea(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("合计金额：", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CardTextDark)
+            Text(if (isEnglish) "Total: " else "合计金额：", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CardTextDark)
             Text(money(result.finalAmount), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CardGreen)
         }
     }
@@ -654,7 +679,7 @@ private fun CardDataRow(
 }
 
 @Composable
-private fun CardBottomSection() {
+private fun CardBottomSection(isEnglish: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -666,13 +691,13 @@ private fun CardBottomSection() {
         // 联系信息
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Text("联系我们", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            CardInfoRow("联系人：", "吴小姐")
-            CardInfoRow("电话：", "13570315323")
-            CardInfoRow("微信：", "xbrody")
-            CardInfoRow("地址：", "广东省广州市增城区新塘镇富源路35号")
+            Text(if (isEnglish) "Contact Us" else "联系我们", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            CardInfoRow(if (isEnglish) "Contact: " else "联系人：", "吴小姐")
+            CardInfoRow(if (isEnglish) "Tel: " else "电话：", "13570315323")
+            CardInfoRow(if (isEnglish) "WeChat: " else "微信：", "xbrody")
+            CardInfoRow(if (isEnglish) "Address: " else "地址：", "广东省广州市增城区新塘镇富源路35号")
         }
 
         // 二维码

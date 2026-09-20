@@ -46,7 +46,8 @@ data class QuoteUiState(
     val selectedSpotProduct: SpotMatch? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-    val traceCode: String? = null
+    val traceCode: String? = null,
+    val isEnglish: Boolean = false
 ) {
     companion object {
         /** 匹配容差的默认值，同时是滑块的起始位置 */
@@ -492,6 +493,10 @@ class QuoteViewModel @Inject constructor(
 
     fun clearTraceCode() {
         _uiState.value = _uiState.value.copy(traceCode = null)
+    }
+
+    fun toggleLanguage() {
+        _uiState.value = _uiState.value.copy(isEnglish = !_uiState.value.isEnglish)
     }
 
     /**
