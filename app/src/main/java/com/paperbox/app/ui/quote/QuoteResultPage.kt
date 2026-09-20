@@ -511,15 +511,15 @@ private fun CardColumnBar() {
     ) {
         CardHeaderText("序号", 36.dp, TextAlign.Center)
         CardDivider()
-        CardHeaderText("产品名称", 90.dp, TextAlign.Start)
+        CardHeaderText("产品名称", 90.dp, TextAlign.Center)
         CardDivider()
-        CardHeaderText("规格", 85.dp, TextAlign.Start)
+        CardHeaderText("规格", 85.dp, TextAlign.Center)
         CardDivider()
-        CardHeaderText("数量", 45.dp, TextAlign.End)
+        CardHeaderText("数量", 45.dp, TextAlign.Center)
         CardDivider()
-        CardHeaderText("单价", 45.dp, TextAlign.End)
+        CardHeaderText("单价", 45.dp, TextAlign.Center)
         CardDivider()
-        CardHeaderText("金额", 54.dp, TextAlign.End)
+        CardHeaderText("金额", 54.dp, TextAlign.Center)
     }
 }
 
@@ -540,8 +540,8 @@ private fun RowScope.CardDivider() {
     Box(
         modifier = Modifier
             .width(1.dp)
-            .height(14.dp)
-            .background(Color.White.copy(alpha = 0.3f))
+            .fillMaxHeight()
+            .background(Color(0xFFBBBBBB))
     )
 }
 
@@ -627,19 +627,19 @@ private fun CardDataRow(
                 textAlign = TextAlign.Center, modifier = Modifier.width(36.dp))
             CardDivider()
             Text(name, fontSize = 10.sp, color = CardTextDark,
-                modifier = Modifier.width(90.dp))
+                textAlign = TextAlign.Center, modifier = Modifier.width(90.dp))
             CardDivider()
             Text(spec, fontSize = 10.sp, color = CardTextDark,
-                modifier = Modifier.width(85.dp))
+                textAlign = TextAlign.Center, modifier = Modifier.width(85.dp))
             CardDivider()
             Text(quantity, fontSize = 10.sp, color = CardTextDark,
-                textAlign = TextAlign.End, modifier = Modifier.width(45.dp))
+                textAlign = TextAlign.Center, modifier = Modifier.width(45.dp))
             CardDivider()
             Text(unitPrice, fontSize = 10.sp, color = CardTextDark,
-                textAlign = TextAlign.End, modifier = Modifier.width(45.dp))
+                textAlign = TextAlign.Center, modifier = Modifier.width(45.dp))
             CardDivider()
             Text(amount, fontSize = 10.sp, color = CardGreen,
-                textAlign = TextAlign.End, modifier = Modifier.width(54.dp))
+                textAlign = TextAlign.Center, modifier = Modifier.width(54.dp))
         }
         // 底部分割线
         Box(
