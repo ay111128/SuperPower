@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -485,7 +484,7 @@ private fun CardHeader(state: QuoteUiState, dateStr: String, isEnglish: Boolean 
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text(if (isEnglish) "Guangzhou Xiaoyu Packaging" else "广州小鱼包装", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(if (isEnglish) "Xiaoyu Packaging" else "广州小鱼包装", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Text(if (isEnglish) "Professional Packaging Solutions" else "专业包装解决方案", fontSize = 9.sp, color = CardGreenLight)
         }
 
@@ -565,7 +564,7 @@ private fun RowScope.CardDivider() {
     Box(
         modifier = Modifier
             .width(1.dp)
-            .fillMaxHeight()
+            .height(20.dp)
             .background(Color(0xFF999999))
     )
 }
@@ -694,10 +693,10 @@ private fun CardBottomSection(isEnglish: Boolean = false) {
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text(if (isEnglish) "Contact Us" else "联系我们", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            CardInfoRow(if (isEnglish) "Contact: " else "联系人：", "吴小姐")
+            CardInfoRow(if (isEnglish) "Contact: " else "联系人：", if (isEnglish) "Ms. Wu" else "吴小姐")
             CardInfoRow(if (isEnglish) "Tel: " else "电话：", "13570315323")
             CardInfoRow(if (isEnglish) "WeChat: " else "微信：", "xbrody")
-            CardInfoRow(if (isEnglish) "Address: " else "地址：", "广东省广州市增城区新塘镇富源路35号")
+            CardInfoRow(if (isEnglish) "Address: " else "地址：", if (isEnglish) "No.35 Fuyuan Rd, Xintang, Zengcheng, Guangzhou" else "广东省广州市增城区新塘镇富源路35号")
         }
 
         // 二维码
