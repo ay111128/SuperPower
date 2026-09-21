@@ -175,7 +175,7 @@ fun QuoteScreen(
                         if (hasAnyInput) {
                             Spacer(Modifier.width(14.dp))
                             Box(
-                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                                modifier = Modifier.weight(1f),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(
@@ -239,7 +239,7 @@ fun QuoteScreen(
                         val hasDimensions = state.lengthText.isNotEmpty() || state.widthText.isNotEmpty() || state.heightText.isNotEmpty()
                         if (hasDimensions && state.spotCounts.isNotEmpty()) {
                             Box(
-                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                                modifier = Modifier.weight(1f),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(
