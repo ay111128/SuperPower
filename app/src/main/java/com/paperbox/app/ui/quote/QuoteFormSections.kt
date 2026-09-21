@@ -21,6 +21,11 @@ import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +35,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -120,6 +130,19 @@ internal fun QuoteField(
         backgroundColor = QuoteGreen.copy(alpha = 0.25f)
     )
 
+    val focusRequester = remember { FocusRequester() }
+    var isFocused by remember { mutableStateOf(false) }
+    var textFieldValue by remember(value) {
+        mutableStateOf(TextFieldValue(text = value, selection = TextRange(value.length)))
+    }
+
+    // 焦点获取时全选
+    LaunchedEffect(isFocused) {
+        if (isFocused && textFieldValue.text.isNotEmpty()) {
+            textFieldValue = textFieldValue.copy(selection = TextRange(0, textFieldValue.text.length))
+        }
+    }
+
     Box(
         modifier = modifier
             .height(36.dp)
@@ -129,14 +152,20 @@ internal fun QuoteField(
     ) {
         CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
             BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.fillMaxSize(),
+                value = textFieldValue,
+                onValueChange = {
+                    textFieldValue = it
+                    onValueChange(it.text)
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusRequester(focusRequester)
+                    .onFocusChanged { isFocused = it.isFocused },
                 textStyle = TextStyle(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     color = QuoteTitle,
-                    textAlign = TextAlign.End
+                    textAlign = TextAlign.Center
                 ),
                 singleLine = true,
                 keyboardOptions = keyboardOptions,
@@ -158,17 +187,8 @@ internal fun QuoteField(
                         )
                         Box(
                             modifier = Modifier.weight(1f),
-                            contentAlignment = Alignment.CenterEnd
+                            contentAlignment = Alignment.Center
                         ) {
-                            if (value.isEmpty()) {
-                                Text(
-                                    text = "0",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = QuoteTitle,
-                                    textAlign = TextAlign.End
-                                )
-                            }
                             innerTextField()
                         }
                     }
@@ -193,7 +213,11 @@ internal fun QuoteMaterialSection(
         .orEmpty()
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(QuoteTabIdleBg)
+            .padding(horizontal = 2.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(

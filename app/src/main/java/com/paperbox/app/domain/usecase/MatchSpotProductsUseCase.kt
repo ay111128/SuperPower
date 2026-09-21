@@ -45,24 +45,35 @@ class MatchSpotProductsUseCase @Inject constructor() {
         tolerance: Double = DEFAULT_TOLERANCE,
         category: String? = null
     ): List<SpotMatch> {
-        if (l <= 0 || w <= 0 || h <= 0 || tolerance < 0) return emptyList()
+        if (tolerance < 0) return emptyList()
+
+        // 只匹配已填的维度（> 0 的维度），未填的维度跳过
+        val checkL = l > 0
+        val checkW = w > 0
+        val checkH = h > 0
+        if (!checkL && !checkW && !checkH) return emptyList()
 
         // 容差为 0 时只有完全一致的尺寸能命中，score 会走 exact 分支，这里避免除零
-        val maxDiff = (tolerance * 3).takeIf { it > 0 } ?: 1.0
+        val filledCount = listOf(checkL, checkW, checkH).count { it }
+        val maxDiff = (tolerance * filledCount).takeIf { it > 0 } ?: 1.0
 
         return products
             .asSequence()
             .filter { category == null || category == "all" || it.category == category }
             .mapNotNull { product ->
                 val parsed = parseSize(product.size) ?: return@mapNotNull null
-                val diffL = abs(parsed.first - l)
-                val diffW = abs(parsed.second - w)
-                val diffH = abs(parsed.third - h)
 
-                // 每个维度都得在容差内
-                if (diffL > tolerance || diffW > tolerance || diffH > tolerance) return@mapNotNull null
+                // 只检查已填维度
+                if (checkL) { val d = abs(parsed.first - l); if (d > tolerance) return@mapNotNull null }
+                if (checkW) { val d = abs(parsed.second - w); if (d > tolerance) return@mapNotNull null }
+                if (checkH) { val d = abs(parsed.third - h); if (d > tolerance) return@mapNotNull null }
 
-                val totalDiff = diffL + diffW + diffH
+                // totalDiff 只累加已填维度的差值
+                val totalDiff = listOf(
+                    if (checkL) abs(parsed.first - l) else 0.0,
+                    if (checkW) abs(parsed.second - w) else 0.0,
+                    if (checkH) abs(parsed.third - h) else 0.0
+                ).sum()
                 val exact = totalDiff == 0.0
                 val score = if (exact) 100 else ((1 - totalDiff / maxDiff) * 100).roundToInt()
 

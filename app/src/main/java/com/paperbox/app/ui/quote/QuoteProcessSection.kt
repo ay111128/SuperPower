@@ -170,7 +170,11 @@ internal fun QuoteProcessGroups(state: QuoteUiState, vm: QuoteViewModel) {
     )
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(QuoteTabIdleBg)
+            .padding(horizontal = 2.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         ProcessGroup(
@@ -382,7 +386,11 @@ internal fun QuoteSpecialFeeSection(state: QuoteUiState, vm: QuoteViewModel) {
     }
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(QuoteTabIdleBg)
+            .padding(horizontal = 2.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(

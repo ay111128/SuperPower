@@ -25,7 +25,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.paperbox.app.domain.model.LayoutKey
 
@@ -80,20 +85,35 @@ fun QuoteScreen(
                         .fillMaxWidth()
                         .statusBarsPadding()
                         .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 2.dp)
-                        .height(62.dp),
+                        .heightIn(min = 62.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (state.isSearchActive) {
                         Spacer(Modifier.width(4.dp))
+                        val searchFocusRequester = remember { FocusRequester() }
+                        var searchIsFocused by remember { mutableStateOf(false) }
+                        var searchFieldValue by remember(state.searchFieldText) {
+                            mutableStateOf(TextFieldValue(text = state.searchFieldText, selection = TextRange(state.searchFieldText.length)))
+                        }
+                        LaunchedEffect(searchIsFocused) {
+                            if (searchIsFocused && searchFieldValue.text.isNotEmpty()) {
+                                searchFieldValue = searchFieldValue.copy(selection = TextRange(0, searchFieldValue.text.length))
+                            }
+                        }
                         BasicTextField(
-                            value = state.searchFieldText,
-                            onValueChange = { viewModel.updateSearchField(it) },
+                            value = searchFieldValue,
+                            onValueChange = {
+                                searchFieldValue = it
+                                viewModel.updateSearchField(it.text)
+                            },
                             singleLine = true,
                             modifier = Modifier
                                 .weight(1f)
                                 .height(32.dp)
                                 .background(Color.White, RoundedCornerShape(10.dp))
-                                .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(10.dp)),
+                                .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                                .focusRequester(searchFocusRequester)
+                                .onFocusChanged { searchIsFocused = it.isFocused },
                             textStyle = androidx.compose.ui.text.TextStyle(
                                 fontSize = 14.sp,
                                 color = Color(0xFF333333)
@@ -101,14 +121,14 @@ fun QuoteScreen(
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = {
                                 focusManager.clearFocus()
-                                viewModel.searchByTraceCode(state.searchFieldText)
+                                viewModel.searchByTraceCode(searchFieldValue.text)
                             }),
                             decorationBox = { innerTextField ->
                                 Box(
                                     contentAlignment = Alignment.CenterStart,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 1.dp)
                                 ) {
-                                    if (state.searchFieldText.isEmpty()) {
+                                    if (searchFieldValue.text.isEmpty()) {
                                         Text("输入工单编号…", color = Color(0xFF999999), fontSize = 14.sp)
                                     }
                                     innerTextField()
@@ -119,7 +139,7 @@ fun QuoteScreen(
                         IconButton(
                             onClick = {
                                 focusManager.clearFocus()
-                                viewModel.searchByTraceCode(state.searchFieldText)
+                                viewModel.searchByTraceCode(searchFieldValue.text)
                             },
                             modifier = Modifier.size(40.dp)
                         ) {
@@ -153,7 +173,7 @@ fun QuoteScreen(
                                 state.heightText.isNotEmpty() || state.quantityText.isNotEmpty()
                         if (hasAnyInput) {
                             Spacer(Modifier.width(14.dp))
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
                                 // 第一行：规格
                                 val parts = mutableListOf<String>()
                                 if (state.lengthText.isNotEmpty()) parts.add(state.lengthText)
@@ -206,6 +226,41 @@ fun QuoteScreen(
                         } else {
                             Spacer(Modifier.weight(1f))
                         }
+                        // ── 现货匹配摘要（右侧） ──
+                        val hasDimensions = state.lengthText.isNotEmpty() || state.widthText.isNotEmpty() || state.heightText.isNotEmpty()
+                        if (hasDimensions && state.spotMatchEnabled && state.spotCounts.isNotEmpty()) {
+                            Spacer(Modifier.width(12.dp))
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(1.dp)
+                            ) {
+                                Text(
+                                    text = "现货匹配：",
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 11.sp,
+                                    lineHeight = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                // 按分类显示匹配数量
+                                val spotLabels = listOf("kraft" to "牛皮色", "white" to "白色", "color" to "彩色")
+                                val matchedLines = spotLabels.mapNotNull { (key, label) ->
+                                    val count = state.spotCounts[key] ?: 0
+                                    if (count > 0) "${label}（${count}）" else null
+                                }
+                                matchedLines.take(3).forEach { line ->
+                                    Text(
+                                        text = line,
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        fontSize = 11.sp,
+                                        lineHeight = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
                         IconButton(
                             onClick = { viewModel.toggleSearch() },
                             modifier = Modifier.size(40.dp)
@@ -237,7 +292,7 @@ fun QuoteScreen(
                     .fillMaxSize()
                     .background(Color.White)
                     .verticalScroll(scrollState)
-                    .padding(horizontal = 16.dp, vertical = 20.dp),
+                    .padding(horizontal = 14.dp, vertical = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 QuoteDimensionSection(

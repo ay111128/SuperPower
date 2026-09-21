@@ -24,10 +24,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
 import com.paperbox.app.domain.model.SpotMatch
 
 /**
@@ -214,6 +218,10 @@ private fun SpotResultRow(
     isSelected: Boolean,
     onDoubleClick: () -> Unit
 ) {
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+    val displaySize = match.size.replace('x', '×').replace('X', '×').replace('*', '×')
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -226,14 +234,18 @@ private fun SpotResultRow(
             )
             .combinedClickable(
                 onClick = {},
-                onDoubleClick = onDoubleClick
+                onDoubleClick = onDoubleClick,
+                onLongClick = {
+                    clipboardManager.setText(AnnotatedString(displaySize))
+                    Toast.makeText(context, "已复制：$displaySize", Toast.LENGTH_SHORT).show()
+                }
             )
             .padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = match.size.replace('x', '×').replace('X', '×').replace('*', '×'),
+            text = displaySize,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             color = if (isSelected) QuoteGreen else QuoteTitle,
