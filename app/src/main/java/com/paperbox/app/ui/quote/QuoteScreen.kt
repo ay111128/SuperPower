@@ -34,6 +34,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.paperbox.app.domain.model.LayoutKey
+import com.paperbox.app.domain.model.MaterialKey
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -396,7 +397,7 @@ fun QuoteScreen(
                             color = QuoteTitle
                         )
                         state.searchResults.forEach { record ->
-                            val mk = record.materialKey?.let { com.paperbox.app.domain.model.MaterialKey.fromApiKey(it)?.label } ?: ""
+                            val mk = record.materialKey?.let { MaterialKey.fromApiKey(it)?.label } ?: ""
                             val tc = record.traceCode
                             val price = if (record.finalAmount != null) "¥${String.format("%.2f", record.finalAmount)}" else ""
                             val dim = "${trimNumber(record.length)}×${trimNumber(record.width)}×${trimNumber(record.height)}cm"

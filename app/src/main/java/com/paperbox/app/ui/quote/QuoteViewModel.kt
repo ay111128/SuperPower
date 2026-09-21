@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paperbox.app.data.api.ApiService
+import com.paperbox.app.data.api.models.QuoteRecordDetail
 import com.paperbox.app.data.api.models.QuoteRecordRequest
 import com.paperbox.app.data.api.models.SpotProduct
 import com.paperbox.app.domain.model.*
@@ -52,7 +53,7 @@ data class QuoteUiState(
     val isSearchActive: Boolean = false,
     val searchFieldText: String = "",
     val searchReady: Boolean = false,
-    val searchResults: List<com.paperbox.app.data.api.models.QuoteRecordDetail> = emptyList()
+    val searchResults: List<QuoteRecordDetail> = emptyList()
 ) {
     companion object {
         /** 匹配容差的默认值，同时是滑块的起始位置 */
