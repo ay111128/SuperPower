@@ -19,7 +19,7 @@ import kotlin.math.roundToInt
 class MatchSpotProductsUseCase @Inject constructor() {
 
     companion object {
-        const val DEFAULT_TOLERANCE = 5.0
+        const val DEFAULT_TOLERANCE = 0.0
 
         /** 兼容 "350x250x150cm" / "350×250×150" / "350 * 250 * 150" 这类写法 */
         private val SIZE_REGEX = Regex("""([\d.]+)\s*[x×X*]\s*([\d.]+)\s*[x×X*]\s*([\d.]+)""")

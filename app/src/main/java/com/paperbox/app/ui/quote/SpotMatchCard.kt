@@ -184,8 +184,8 @@ private fun SpotMatchBody(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 when {
-                    state.form.length <= 0 || state.form.width <= 0 || state.form.height <= 0 ->
-                        Text("填好长宽高后显示匹配结果", fontSize = 12.sp, color = QuoteMuted)
+                    state.form.length <= 0 && state.form.width <= 0 && state.form.height <= 0 ->
+                        Text("至少输入一个维度即可查看匹配结果", fontSize = 12.sp, color = QuoteMuted)
 
                     state.spotMatches.isEmpty() ->
                         Text("没有匹配的现货尺寸，可以试试放宽容差", fontSize = 12.sp, color = QuoteMuted)
@@ -201,6 +201,7 @@ private fun SpotMatchBody(
                         state.spotMatches.forEach { match ->
                             SpotResultRow(
                                 match = match,
+                                quantity = state.form.orderQuantity,
                                 isSelected = match.size == state.selectedSpotProduct?.size,
                                 onDoubleClick = { onSelectSpot(match) }
                             )
@@ -215,6 +216,7 @@ private fun SpotMatchBody(
 @Composable
 private fun SpotResultRow(
     match: SpotMatch,
+    quantity: Int,
     isSelected: Boolean,
     onDoubleClick: () -> Unit
 ) {
@@ -253,11 +255,23 @@ private fun SpotResultRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
-        Text(
-            text = money(match.price),
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (isSelected) QuoteGreen else QuotePrice
-        )
+        if (quantity > 0) {
+            val total = match.price * quantity
+            Text(
+                text = "${money(match.price)}  ${quantity}个  总计${money(total)}",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isSelected) QuoteGreen else QuotePrice,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        } else {
+            Text(
+                text = money(match.price),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isSelected) QuoteGreen else QuotePrice
+            )
+        }
     }
 }

@@ -55,7 +55,7 @@ data class QuoteUiState(
 ) {
     companion object {
         /** 匹配容差的默认值，同时是滑块的起始位置 */
-        const val DEFAULT_TOLERANCE = 5.0
+        const val DEFAULT_TOLERANCE = 0.0
         /** 滑块量程（cm）——最大 10cm，步进 1cm */
         const val MIN_TOLERANCE = 0.0
         const val MAX_TOLERANCE = 10.0

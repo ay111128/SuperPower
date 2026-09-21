@@ -174,54 +174,62 @@ fun QuoteScreen(
                                 state.heightText.isNotEmpty() || state.quantityText.isNotEmpty()
                         if (hasAnyInput) {
                             Spacer(Modifier.width(14.dp))
-                            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                                // 第一行：规格
-                                val parts = mutableListOf<String>()
-                                if (state.lengthText.isNotEmpty()) parts.add(state.lengthText)
-                                if (state.widthText.isNotEmpty()) parts.add(state.widthText)
-                                if (state.heightText.isNotEmpty()) parts.add(state.heightText)
-                                if (parts.isNotEmpty()) {
-                                    Text(
-                                        text = "规格：${parts.joinToString(" × ")}",
-                                        color = Color.White.copy(alpha = 0.85f),
-                                        fontSize = 11.sp,
-                                        lineHeight = 11.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                // 第二行：数量
-                                if (state.quantityText.isNotEmpty()) {
-                                    Text(
-                                        text = "数量：${state.quantityText}",
-                                        color = Color.White.copy(alpha = 0.85f),
-                                        fontSize = 11.sp,
-                                        lineHeight = 11.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                // 第三行：单价
-                                val computation = state.result
-                                if (computation != null && state.form.orderQuantity > 0) {
-                                    val unitPrice = computation.finalAmount / state.form.orderQuantity
-                                    Text(
-                                        text = "单价：¥${String.format("%.2f", unitPrice)}/个",
-                                        color = Color.White.copy(alpha = 0.7f),
-                                        fontSize = 11.sp,
-                                        lineHeight = 11.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    // 第四行：总计
-                                    Text(
-                                        text = "总计：¥${String.format("%.2f", computation.finalAmount)}",
-                                        color = Color.White.copy(alpha = 0.7f),
-                                        fontSize = 11.sp,
-                                        lineHeight = 11.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                            Box(
+                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    modifier = Modifier.wrapContentWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                                ) {
+                                    // 第一行：规格
+                                    val parts = mutableListOf<String>()
+                                    if (state.lengthText.isNotEmpty()) parts.add(state.lengthText)
+                                    if (state.widthText.isNotEmpty()) parts.add(state.widthText)
+                                    if (state.heightText.isNotEmpty()) parts.add(state.heightText)
+                                    if (parts.isNotEmpty()) {
+                                        Text(
+                                            text = "规格：${parts.joinToString(" × ")}",
+                                            color = Color.White.copy(alpha = 0.85f),
+                                            fontSize = 11.sp,
+                                            lineHeight = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    // 第二行：数量
+                                    if (state.quantityText.isNotEmpty()) {
+                                        Text(
+                                            text = "数量：${state.quantityText}",
+                                            color = Color.White.copy(alpha = 0.85f),
+                                            fontSize = 11.sp,
+                                            lineHeight = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    // 第三行：单价
+                                    val computation = state.result
+                                    if (computation != null && state.form.orderQuantity > 0) {
+                                        val unitPrice = computation.finalAmount / state.form.orderQuantity
+                                        Text(
+                                            text = "单价：¥${String.format("%.2f", unitPrice)}/个",
+                                            color = Color.White.copy(alpha = 0.7f),
+                                            fontSize = 11.sp,
+                                            lineHeight = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        // 第四行：总计
+                                        Text(
+                                            text = "总计：¥${String.format("%.2f", computation.finalAmount)}",
+                                            color = Color.White.copy(alpha = 0.7f),
+                                            fontSize = 11.sp,
+                                            lineHeight = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                             }
                         } else {
@@ -230,34 +238,38 @@ fun QuoteScreen(
                         // ── 现货匹配摘要（右侧） ──
                         val hasDimensions = state.lengthText.isNotEmpty() || state.widthText.isNotEmpty() || state.heightText.isNotEmpty()
                         if (hasDimensions && state.spotCounts.isNotEmpty()) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(1.dp)
+                            Box(
+                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "现货匹配：",
-                                    color = Color.White.copy(alpha = 0.85f),
-                                    fontSize = 11.sp,
-                                    lineHeight = 11.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                // 按分类显示匹配数量
-                                val spotLabels = listOf("kraft" to "牛皮色", "white" to "白色", "color" to "彩色")
-                                val matchedLines = spotLabels.mapNotNull { (key, label) ->
-                                    val count = state.spotCounts[key] ?: 0
-                                    if (count > 0) "${label}（${count}）" else null
-                                }
-                                matchedLines.take(3).forEach { line ->
+                                Column(
+                                    modifier = Modifier.wrapContentWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                                ) {
                                     Text(
-                                        text = line,
+                                        text = "现货匹配：",
                                         color = Color.White.copy(alpha = 0.85f),
                                         fontSize = 11.sp,
                                         lineHeight = 11.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
+                                    // 按分类显示匹配数量
+                                    val spotLabels = listOf("kraft" to "牛皮色", "white" to "白色", "color" to "彩色")
+                                    val matchedLines = spotLabels.mapNotNull { (key, label) ->
+                                        val count = state.spotCounts[key] ?: 0
+                                        if (count > 0) "${label}（${count}）" else null
+                                    }
+                                    matchedLines.take(3).forEach { line ->
+                                        Text(
+                                            text = line,
+                                            color = Color.White.copy(alpha = 0.85f),
+                                            fontSize = 11.sp,
+                                            lineHeight = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                             }
                         }
