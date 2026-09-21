@@ -15,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -228,8 +229,7 @@ fun QuoteScreen(
                         }
                         // ── 现货匹配摘要（右侧） ──
                         val hasDimensions = state.lengthText.isNotEmpty() || state.widthText.isNotEmpty() || state.heightText.isNotEmpty()
-                        if (hasDimensions && state.spotMatchEnabled && state.spotCounts.isNotEmpty()) {
-                            Spacer(Modifier.width(12.dp))
+                        if (hasDimensions && state.spotCounts.isNotEmpty()) {
                             Column(
                                 modifier = Modifier.weight(1f),
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -315,14 +315,22 @@ fun QuoteScreen(
                 ) {
                     QuoteMaterialSection(state = state, onSelect = viewModel::updateMaterialKey)
 
-                    QuoteProcessSummaryRow(
-                        state = state,
-                        expanded = layoutMenuExpanded,
-                        onExpandedChange = { layoutMenuExpanded = it },
-                        onSelectLayout = { layout: LayoutKey -> viewModel.updateLayout(layout) }
-                    )
-
-                    QuoteProcessGroups(state = state, vm = viewModel)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(QuoteTabIdleBg)
+                            .padding(horizontal = 2.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        QuoteProcessSummaryRow(
+                            state = state,
+                            expanded = layoutMenuExpanded,
+                            onExpandedChange = { layoutMenuExpanded = it },
+                            onSelectLayout = { layout: LayoutKey -> viewModel.updateLayout(layout) }
+                        )
+                        QuoteProcessGroups(state = state, vm = viewModel)
+                    }
 
                     QuoteSpecialFeeSection(state = state, vm = viewModel)
                 }
