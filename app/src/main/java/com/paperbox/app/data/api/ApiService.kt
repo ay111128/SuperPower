@@ -71,6 +71,9 @@ interface ApiService {
     @GET("materials-api/quote-records/{traceCode}")
     suspend fun getQuoteRecord(@Path("traceCode") traceCode: String): Response<QuoteRecordDetail>
 
+    @GET("materials-api/quote-records/search")
+    suspend fun searchQuoteRecords(@Query("q") query: String): Response<List<QuoteRecordDetail>>
+
     @POST("materials-api/quote-records")
     suspend fun saveQuoteRecord(@Body record: QuoteRecordRequest): Response<QuoteRecordResponse>
 

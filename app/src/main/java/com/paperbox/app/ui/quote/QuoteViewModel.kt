@@ -51,7 +51,8 @@ data class QuoteUiState(
     val isEnglish: Boolean = false,
     val isSearchActive: Boolean = false,
     val searchFieldText: String = "",
-    val searchReady: Boolean = false
+    val searchReady: Boolean = false,
+    val searchResults: List<com.paperbox.app.data.api.models.QuoteRecordDetail> = emptyList()
 ) {
     companion object {
         /** 匹配容差的默认值，同时是滑块的起始位置 */
@@ -536,7 +537,8 @@ class QuoteViewModel @Inject constructor(
     }
 
     /**
-     * 按工单编号查询后端记录，成功后构造 QuoteComputation 写入 state。
+     * 搜索报价记录：支持工单号、价格、尺寸、材质。
+     * 单条结果自动选中，多条结果展示列表供用户选择。
      */
     fun searchByTraceCode(code: String) {
         val trimmed = code.trim()
@@ -545,60 +547,33 @@ class QuoteViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             try {
-                android.util.Log.d("QuoteVM", "搜索 traceCode=$trimmed")
-                val response = apiService.getQuoteRecord(trimmed)
+                android.util.Log.d("QuoteVM", "搜索 q=$trimmed")
+                val response = apiService.searchQuoteRecords(trimmed)
                 if (response.isSuccessful) {
-                    val record = response.body()!!
-                    val materialKey = record.materialKey?.let { MaterialKey.fromApiKey(it) } ?: MaterialKey.KRAFT_SMALL
-                    val materialCost = record.materialCost ?: 0.0
-                    val processCost = record.processCost ?: 0.0
-                    val specialFeesCost = record.specialFeesCost ?: 0.0
-                    val profitAmount = record.profitAmount ?: 0.0
-                    val extraFee = record.extraFee ?: 0.0
-                    val finalAmount = record.finalAmount ?: 0.0
-
-                    val computation = QuoteComputation(
-                        layouts = emptyMap(),
-                        areaM2 = 0.0,
-                        materialLabel = record.materialLabel ?: "",
-                        materialKey = materialKey,
-                        materialUnitPrice = record.materialUnitPrice ?: 0.0,
-                        chargeLines = emptyList(),
-                        subtotal = materialCost + processCost,
-                        afterExtraFee = materialCost + processCost + extraFee,
-                        profitAmount = profitAmount,
-                        finalAmount = finalAmount,
-                        specialFeesSum = specialFeesCost,
-                        markupTotal = finalAmount,
-                        totalWeight = record.totalWeight ?: 0.0,
-                        materialCost = materialCost,
-                        basicProcessCost = processCost,
-                        printProcessCost = 0.0
-                    )
-
-                    _uiState.value = _uiState.value.copy(
-                        result = computation,
-                        traceCode = record.traceCode,
-                        form = QuoteFormValues(
-                            length = record.length,
-                            width = record.width,
-                            height = record.height,
-                            orderQuantity = record.quantity,
-                            materialKey = materialKey
-                        ),
-                        lengthText = trimNumber(record.length),
-                        widthText = trimNumber(record.width),
-                        heightText = trimNumber(record.height),
-                        quantityText = record.quantity.toString(),
-                        isSearchActive = false,
-                        searchFieldText = "",
-                        searchReady = true,
-                        isLoading = false
-                    )
+                    val records = response.body() ?: emptyList()
+                    when {
+                        records.isEmpty() -> {
+                            _uiState.value = _uiState.value.copy(
+                                errorMessage = "未找到匹配的记录",
+                                isLoading = false
+                            )
+                        }
+                        records.size == 1 -> {
+                            applySearchResult(records.first())
+                        }
+                        else -> {
+                            _uiState.value = _uiState.value.copy(
+                                searchResults = records,
+                                isSearchActive = false,
+                                searchFieldText = "",
+                                isLoading = false
+                            )
+                        }
+                    }
                 } else {
                     android.util.Log.w("QuoteVM", "搜索失败 HTTP ${response.code()} body=${response.errorBody()?.string()}")
                     _uiState.value = _uiState.value.copy(
-                        errorMessage = "未找到工单（HTTP ${response.code()}）",
+                        errorMessage = "搜索失败（HTTP ${response.code()}）",
                         isLoading = false
                     )
                 }
@@ -609,6 +584,67 @@ class QuoteViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    /** 选中搜索结果列表中的某一条 */
+    fun selectSearchResult(record: QuoteRecordDetail) {
+        applySearchResult(record)
+    }
+
+    fun clearSearchResults() {
+        _uiState.value = _uiState.value.copy(searchResults = emptyList())
+    }
+
+    private fun applySearchResult(record: QuoteRecordDetail) {
+        val materialKey = record.materialKey?.let { MaterialKey.fromApiKey(it) } ?: MaterialKey.KRAFT_SMALL
+        val materialCost = record.materialCost ?: 0.0
+        val processCost = record.processCost ?: 0.0
+        val specialFeesCost = record.specialFeesCost ?: 0.0
+        val profitAmount = record.profitAmount ?: 0.0
+        val extraFee = record.extraFee ?: 0.0
+        val finalAmount = record.finalAmount ?: 0.0
+
+        val computation = QuoteComputation(
+            layouts = emptyMap(),
+            areaM2 = 0.0,
+            materialLabel = record.materialLabel ?: "",
+            materialKey = materialKey,
+            materialUnitPrice = record.materialUnitPrice ?: 0.0,
+            chargeLines = emptyList(),
+            subtotal = materialCost + processCost,
+            afterExtraFee = materialCost + processCost + extraFee,
+            profitAmount = profitAmount,
+            finalAmount = finalAmount,
+            specialFeesSum = specialFeesCost,
+            markupTotal = finalAmount,
+            totalWeight = record.totalWeight ?: 0.0,
+            materialCost = materialCost,
+            basicProcessCost = processCost,
+            printProcessCost = 0.0
+        )
+
+        _uiState.value = _uiState.value.copy(
+            result = computation,
+            traceCode = record.traceCode,
+            form = QuoteFormValues(
+                length = record.length,
+                width = record.width,
+                height = record.height,
+                orderQuantity = record.quantity,
+                materialKey = materialKey
+            ),
+            lengthText = trimNumber(record.length),
+            widthText = trimNumber(record.width),
+            heightText = trimNumber(record.height),
+            quantityText = record.quantity.toString(),
+            searchResults = emptyList(),
+            isSearchActive = false,
+            searchFieldText = "",
+            searchReady = true,
+            isLoading = false
+        )
+        recalculate()
+        rematch()
     }
 
     /**

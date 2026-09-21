@@ -370,6 +370,74 @@ fun QuoteScreen(
                     onClick = onGenerateQuote
                 )
             }
+
+            // ── 搜索结果列表（多条时弹出） ──
+            if (state.searchResults.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.3f))
+                        .clickable { viewModel.clearSearchResults() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .background(Color.White, RoundedCornerShape(16.dp))
+                            .clickable { /* 阻止穿透 */ }
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "找到 ${state.searchResults.size} 条记录",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = QuoteTitle
+                        )
+                        state.searchResults.forEach { record ->
+                            val mk = record.materialKey?.let { com.paperbox.app.domain.model.MaterialKey.fromApiKey(it)?.label } ?: ""
+                            val tc = record.traceCode
+                            val price = if (record.finalAmount != null) "¥${String.format("%.2f", record.finalAmount)}" else ""
+                            val dim = "${trimNumber(record.length)}×${trimNumber(record.width)}×${trimNumber(record.height)}cm"
+                            val qty = "${record.quantity}个"
+                            val date = record.createdAt.take(10)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(QuoteRowBg)
+                                    .clickable { viewModel.selectSearchResult(record) }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        tc,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = QuoteGreen
+                                    )
+                                    Text(
+                                        price,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = QuotePrice
+                                    )
+                                }
+                                Text(
+                                    "$dim  $qty  $mk  $date",
+                                    fontSize = 11.sp,
+                                    color = QuoteGray66
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
