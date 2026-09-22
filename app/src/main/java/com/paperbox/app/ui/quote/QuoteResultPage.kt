@@ -9,8 +9,11 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -25,17 +28,25 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +58,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.boundsInWindow
@@ -56,6 +68,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.FontSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.drawToBitmap
@@ -68,6 +81,57 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+/** 报价单表格里一行可编辑的列数据（纯展示层，不回算价格）。 */
+private data class DocRow(
+    val name: String,
+    val spec: String,
+    val quantity: String,
+    val unitPrice: String,
+    val amount: String,
+)
+
+/** 由计算结果生成报价单的初始行数据：主品行 + 已启用附加费行。 */
+private fun buildDocRows(state: QuoteUiState, result: QuoteComputation, isEnglish: Boolean): List<DocRow> {
+    val unitPrice = if (state.form.orderQuantity > 0)
+        result.finalAmount / state.form.orderQuantity else 0.0
+    val main = DocRow(
+        name = if (isEnglish) "Mailer Box" else "飞机盒",
+        spec = "${trimNumber(state.form.length)}×${trimNumber(state.form.width)}×${trimNumber(state.form.height)}",
+        quantity = "${state.form.orderQuantity}",
+        unitPrice = moneyPlain(unitPrice),
+        amount = money(result.finalAmount),
+    )
+    val fees = state.form.specialFees.filter { it.enabled }.map { fee ->
+        DocRow(fee.name, "-", "-", money(fee.amount), money(fee.amount))
+    }
+    return listOf(main) + fees
+}
+
+/**
+ * 顶栏幽灵按钮：默认只有 1px 半透明白描边（32dp 圆 / 胶囊），按压时浮现 20% 白底。
+ * [pill] = true 时按内容横向撑开（用于「保存」），否则固定 32dp 圆形。
+ */
+@Composable
+private fun TopBarButton(
+    onClick: () -> Unit,
+    pill: Boolean = false,
+    content: @Composable BoxScope.() -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    Box(
+        modifier = Modifier
+            .then(if (pill) Modifier.height(32.dp) else Modifier.size(32.dp))
+            .clip(CircleShape)
+            .background(if (pressed) Color.White.copy(alpha = 0.2f) else Color.Transparent)
+            .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape)
+            .then(if (pill) Modifier.padding(horizontal = 14.dp) else Modifier)
+            .clickable(interactionSource = interactionSource, indication = null) { onClick() },
+        contentAlignment = Alignment.Center,
+        content = content
+    )
+}
 
 /**
  * 报价结果页 —— 由浮动按钮「生成报价」推入的独立整页（不是弹窗）。
@@ -88,6 +152,18 @@ internal fun QuoteResultPage(
     val scope = rememberCoroutineScope()
     val view = LocalView.current
     val documentBounds = remember { mutableStateOf<Rect?>(null) }
+
+    // ── 报价单编辑模式：只改表格列数据（logo/日期/工单号/列名不可编辑）──
+    var editing by remember { mutableStateOf(false) }
+    // 原始行随计算结果/语言变化；一旦编辑过就以 editedRows 为准（语言切换不再覆盖手工修改）
+    val originalRows = remember(state, result, state.isEnglish) {
+        buildDocRows(state, result, state.isEnglish)
+    }
+    val originalTotal = remember(result) { money(result.finalAmount) }
+    var editedRows by remember { mutableStateOf<List<DocRow>?>(null) }
+    var editedTotal by remember { mutableStateOf<String?>(null) }
+    val shownRows = editedRows ?: originalRows
+    val shownTotal = editedTotal ?: originalTotal
 
     fun captureDocument() {
         val bounds = documentBounds.value ?: return
@@ -129,7 +205,8 @@ internal fun QuoteResultPage(
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .height(62.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // 左侧返回按钮
             IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
@@ -144,32 +221,44 @@ internal fun QuoteResultPage(
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center
             )
-            // 右侧中英文切换按钮
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.White.copy(alpha = 0.2f))
-                    .clickable { onToggleLanguage() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    if (state.isEnglish) "中" else "EN",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            // 下载截图按钮
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.White.copy(alpha = 0.2f))
-                    .clickable { captureDocument() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("⬇", color = Color.White, fontSize = 18.sp)
+            // 右侧按钮区：正常态 = 中英文切换 / 编辑 / 下载；编辑态 = 保存
+            if (editing) {
+                TopBarButton(onClick = { editing = false }, pill = true) {
+                    Text(
+                        "保存",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            } else {
+                // 中英文切换
+                TopBarButton(onClick = onToggleLanguage) {
+                    Text(
+                        if (state.isEnglish) "中" else "EN",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                // 编辑
+                TopBarButton(onClick = { editing = true }) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "编辑报价单",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                // 下载截图
+                TopBarButton(onClick = { captureDocument() }) {
+                    Icon(
+                        Icons.Default.FileDownload,
+                        contentDescription = "下载截图",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
 
@@ -181,7 +270,18 @@ internal fun QuoteResultPage(
                 .padding(horizontal = 0.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            QuoteDocumentSection(state, result, state.isEnglish) { rect ->
+            QuoteDocumentSection(
+                state = state,
+                result = result,
+                isEnglish = state.isEnglish,
+                rows = shownRows,
+                totalText = shownTotal,
+                editing = editing,
+                onEditRow = { i, transform ->
+                    editedRows = shownRows.mapIndexed { idx, r -> if (idx == i) transform(r) else r }
+                },
+                onEditTotal = { editedTotal = it }
+            ) { rect ->
                 documentBounds.value = rect
             }
             QuoteSummaryCard(state, result)
@@ -428,11 +528,15 @@ private fun QuoteDocumentSection(
     state: QuoteUiState,
     result: QuoteComputation,
     isEnglish: Boolean = false,
+    rows: List<DocRow>,
+    totalText: String,
+    editing: Boolean,
+    onEditRow: (Int, (DocRow) -> DocRow) -> Unit,
+    onEditTotal: (String) -> Unit,
     onDocumentBounds: (Rect?) -> Unit = {}
 ) {
     val now = Date()
     val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
-    val enabledFees = state.form.specialFees.filter { it.enabled }
 
     Column(
         modifier = Modifier
@@ -480,7 +584,7 @@ private fun QuoteDocumentSection(
                 }
         ) {
             CardColumnBar(isEnglish)
-            CardDataArea(state, result, enabledFees, isEnglish)
+            CardDataArea(rows, totalText, isEnglish, editing, onEditRow, onEditTotal)
         }
 
         // ── BottomSection: 联系信息 + 二维码 ──
@@ -595,41 +699,25 @@ private fun RowScope.CardHeaderText(text: String, weight: Float) {
 
 @Composable
 private fun CardDataArea(
-    state: QuoteUiState,
-    result: QuoteComputation,
-    enabledFees: List<com.paperbox.app.domain.model.SpecialFee>,
-    isEnglish: Boolean = false
+    rows: List<DocRow>,
+    totalText: String,
+    isEnglish: Boolean = false,
+    editing: Boolean = false,
+    onEditRow: (Int, (DocRow) -> DocRow) -> Unit,
+    onEditTotal: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White)
     ) {
-        // 主品行
-        val unitPrice = if (state.form.orderQuantity > 0)
-            result.finalAmount / state.form.orderQuantity else 0.0
-        val spec = "${trimNumber(state.form.length)}×${trimNumber(state.form.width)}×${trimNumber(state.form.height)}"
-
-        CardDataRow(
-            index = 1,
-            name = result.materialLabel,
-            spec = spec,
-            quantity = "${state.form.orderQuantity}",
-            unitPrice = moneyPlain(unitPrice),
-            amount = money(result.finalAmount),
-            isAlt = true
-        )
-
-        // 附加费行
-        enabledFees.forEachIndexed { index, fee ->
+        rows.forEachIndexed { i, row ->
             CardDataRow(
-                index = index + 2,
-                name = fee.name,
-                spec = "-",
-                quantity = "-",
-                unitPrice = money(fee.amount),
-                amount = money(fee.amount),
-                isAlt = (index + 2) % 2 == 0
+                index = i + 1,
+                row = row,
+                isAlt = (i + 1) % 2 == 1, // 第1、3…行浅绿，与原斑马纹一致
+                editing = editing,
+                onEdit = { transform -> onEditRow(i, transform) }
             )
         }
 
@@ -650,16 +738,14 @@ private fun CardDataArea(
             ) {
                 Text(if (isEnglish) "Total: " else "合计金额：", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CardTextDark)
             }
-            Text(
-                money(result.finalAmount),
+            CellContent(
+                editing = editing,
+                value = totalText,
+                onValueChange = onEditTotal,
+                color = CardGreen,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                color = CardGreen,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                modifier = Modifier
-                    .weight(CardColWeights[5])
-                    .padding(horizontal = 6.dp)
+                singleLine = true
             )
         }
     }
@@ -668,12 +754,10 @@ private fun CardDataArea(
 @Composable
 private fun CardDataRow(
     index: Int,
-    name: String,
-    spec: String,
-    quantity: String,
-    unitPrice: String,
-    amount: String,
-    isAlt: Boolean
+    row: DocRow,
+    isAlt: Boolean,
+    editing: Boolean = false,
+    onEdit: (transform: (DocRow) -> DocRow) -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -692,23 +776,24 @@ private fun CardDataRow(
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
-        CardDataCell(CardColWeights[0], TextAlign.Center) {
+        // 序号是行号，不是数据，不可编辑
+        CardDataCell(CardColWeights[0]) {
             Text("$index", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CardTextDark, maxLines = 1)
         }
-        CardDataCell(CardColWeights[1], TextAlign.Center) {
-            Text(name, fontSize = 10.sp, color = CardTextDark, textAlign = TextAlign.Center)
+        CardDataCell(CardColWeights[1]) {
+            CellContent(editing, row.name, { v -> onEdit { it.copy(name = v) } }, maxLines = 2)
         }
-        CardDataCell(CardColWeights[2], TextAlign.Center) {
-            Text(spec, fontSize = 10.sp, color = CardTextDark, textAlign = TextAlign.Center, maxLines = 2)
+        CardDataCell(CardColWeights[2]) {
+            CellContent(editing, row.spec, { v -> onEdit { it.copy(spec = v) } }, maxLines = 2)
         }
-        CardDataCell(CardColWeights[3], TextAlign.Center) {
-            Text(quantity, fontSize = 10.sp, color = CardTextDark, textAlign = TextAlign.Center, maxLines = 1)
+        CardDataCell(CardColWeights[3]) {
+            CellContent(editing, row.quantity, { v -> onEdit { it.copy(quantity = v) } }, singleLine = true)
         }
-        CardDataCell(CardColWeights[4], TextAlign.Center) {
-            Text(unitPrice, fontSize = 10.sp, color = CardTextDark, textAlign = TextAlign.Center, maxLines = 1)
+        CardDataCell(CardColWeights[4]) {
+            CellContent(editing, row.unitPrice, { v -> onEdit { it.copy(unitPrice = v) } }, singleLine = true)
         }
-        CardDataCell(CardColWeights[5], TextAlign.Center) {
-            Text(amount, fontSize = 10.sp, color = CardGreen, textAlign = TextAlign.Center, maxLines = 1)
+        CardDataCell(CardColWeights[5]) {
+            CellContent(editing, row.amount, { v -> onEdit { it.copy(amount = v) } }, color = CardGreen, singleLine = true)
         }
     }
 }
@@ -717,16 +802,63 @@ private fun CardDataRow(
 @Composable
 private fun RowScope.CardDataCell(
     weight: Float,
-    align: TextAlign,
     content: @Composable () -> Unit
 ) {
     Box(
         modifier = Modifier
             .weight(weight)
             .padding(horizontal = 6.dp, vertical = 8.dp),
-        contentAlignment = if (align == TextAlign.End) Alignment.CenterEnd else Alignment.Center
+        contentAlignment = Alignment.Center
     ) {
         content()
+    }
+}
+
+/**
+ * 单元格内容：非编辑态是普通 Text；编辑态是浅黄底的 BasicTextField（Excel 选中单元格的感觉）。
+ * 列名称/序号不走这里 → 天然不可编辑。
+ */
+@Composable
+private fun CellContent(
+    editing: Boolean,
+    value: String,
+    onValueChange: (String) -> Unit,
+    color: Color = CardTextDark,
+    fontSize: FontSize = 10.sp,
+    fontWeight: FontWeight = FontWeight.Normal,
+    maxLines: Int = 2,
+    singleLine: Boolean = false,
+) {
+    if (editing) {
+        BasicTextField(
+            value = value,
+            onValueChange = { raw ->
+                val v = if (singleLine) raw.replace("\n", "") else raw
+                onValueChange(v.take(100))
+            },
+            textStyle = TextStyle(
+                fontSize = fontSize,
+                color = color,
+                fontWeight = fontWeight,
+                textAlign = TextAlign.Center
+            ),
+            cursorBrush = SolidColor(CardGreen),
+            maxLines = if (singleLine) 1 else maxLines,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(3.dp))
+                .background(Color(0xFFFFF8E1))
+                .padding(horizontal = 3.dp, vertical = 2.dp)
+        )
+    } else {
+        Text(
+            value,
+            fontSize = fontSize,
+            color = color,
+            fontWeight = fontWeight,
+            textAlign = TextAlign.Center,
+            maxLines = if (singleLine) 1 else maxLines
+        )
     }
 }
 
