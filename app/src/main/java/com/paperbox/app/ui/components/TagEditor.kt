@@ -132,7 +132,7 @@ fun TagEditor(
             Text(
                 text = if (trimmed.isEmpty()) "已有标签（点击添加）" else "匹配「$trimmed」",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.typography.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
