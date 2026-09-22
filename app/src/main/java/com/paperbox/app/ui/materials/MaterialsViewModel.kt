@@ -449,11 +449,15 @@ class MaterialsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(remarkDraft = value.take(500))
     }
 
-    fun toggleTagDraft(tag: String) {
-        val current = _uiState.value.tagDraft.toMutableSet()
-        if (current.contains(tag)) current.remove(tag)
-        else if (current.size < 10) current.add(tag) // 后端 MAX_TAGS = 10
-        _uiState.value = _uiState.value.copy(tagDraft = current)
+    fun addTagDraft(tag: String) {
+        val t = tag.trim()
+        val current = _uiState.value.tagDraft
+        if (t.isEmpty() || t in current || current.size >= 10) return // 后端 MAX_TAGS = 10
+        _uiState.value = _uiState.value.copy(tagDraft = current + t)
+    }
+
+    fun removeTagDraft(tag: String) {
+        _uiState.value = _uiState.value.copy(tagDraft = _uiState.value.tagDraft - tag)
     }
 
     fun dismissEditDialog() {
@@ -482,6 +486,7 @@ class MaterialsViewModel @Inject constructor(
                     )
                     loadMaterials()
                     loadFilterCounts()
+                    loadTags() // 新建的标签要进词表，否则筛选/建议里搜不到
                 } else {
                     // HTTP 4xx/5xx 也要有反馈，否则看起来像点了没反应
                     _uiState.value = _uiState.value.copy(

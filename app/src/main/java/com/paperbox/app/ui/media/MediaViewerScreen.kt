@@ -11,8 +11,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -70,6 +68,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.paperbox.app.BuildConfig
 import com.paperbox.app.data.api.models.MaterialItem
+import com.paperbox.app.ui.components.TagEditor
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import coil.request.ImageRequest
@@ -82,7 +81,7 @@ private const val VIEW_NORMAL = 0
 private const val VIEW_FULLSCREEN = 1
 private const val VIEW_PURE = 2
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MediaViewerScreen(
     materialId: String,
@@ -356,46 +355,17 @@ fun MediaViewerScreen(
                         maxLines = 4,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Text(
-                        "标签（最多10个）",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (availableTags.isEmpty()) {
-                            Text(
-                                "暂无可用标签",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        availableTags.forEach { tag ->
-                            val isSelected = tag in tagDraft
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                       else MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier.clickable {
-                                    tagDraft = if (isSelected) {
-                                        tagDraft - tag
-                                    } else if (tagDraft.size < 10) {
-                                        tagDraft + tag
-                                    } else tagDraft
-                                }
-                            ) {
-                                Text(
-                                    text = tag,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary
-                                           else MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
-                                )
+                    TagEditor(
+                        selected = tagDraft,
+                        availableTags = availableTags,
+                        onAdd = { tag ->
+                            val t = tag.trim()
+                            if (t.isNotEmpty() && t !in tagDraft && tagDraft.size < 10) {
+                                tagDraft = tagDraft + t
                             }
-                        }
-                    }
+                        },
+                        onRemove = { tagDraft = tagDraft - it }
+                    )
                 }
             },
             confirmButton = {

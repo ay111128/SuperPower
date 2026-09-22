@@ -15,8 +15,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -112,6 +110,7 @@ import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.paperbox.app.BuildConfig
 import com.paperbox.app.data.api.models.MaterialItem
+import com.paperbox.app.ui.components.TagEditor
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import java.net.URLEncoder
@@ -169,7 +168,7 @@ private fun formatSize(bytes: Long): String = when {
     else -> "${bytes}B"
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsState()
@@ -684,7 +683,6 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
     if (state.showEditDialog) {
         val availableTags = remember(state.tags, state.selectedMaterial) {
             (state.tags + (state.selectedMaterial?.tags ?: emptyList())).distinct()
-                .ifEmpty { listOf("设计稿", "产品图", "封面", "图标", "合同") }
         }
         AlertDialog(
             onDismissRequest = { viewModel.dismissEditDialog() },
@@ -711,33 +709,12 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         maxLines = 4,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Text(
-                        "标签（最多10个）",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    TagEditor(
+                        selected = state.tagDraft,
+                        availableTags = availableTags,
+                        onAdd = viewModel::addTagDraft,
+                        onRemove = viewModel::removeTagDraft
                     )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        availableTags.forEach { tag ->
-                            val isSelected = tag in state.tagDraft
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                       else MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier.clickable { viewModel.toggleTagDraft(tag) }
-                            ) {
-                                Text(
-                                    text = tag,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary
-                                           else MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
-                                )
-                            }
-                        }
-                    }
                 }
             },
             confirmButton = {
