@@ -475,6 +475,11 @@ class MaterialsViewModel @Inject constructor(
                     )
                     loadMaterials()
                     loadFilterCounts()
+                } else {
+                    // HTTP 4xx/5xx：之前完全没有反馈，看起来像点了没反应
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = "删除失败：HTTP ${response.code()}"
+                    )
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(

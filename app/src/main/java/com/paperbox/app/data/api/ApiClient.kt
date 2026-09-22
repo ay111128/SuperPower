@@ -1,6 +1,7 @@
 package com.paperbox.app.data.api
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -59,7 +60,17 @@ class ApiClient @Inject constructor(
                 }
             }
             .build()
-        chain.proceed(request)
+        val response = chain.proceed(request)
+
+        // 401 → 清除 token，触发 NavGraph 重新判断登录状态
+        if (response.code == 401 && token.isNotEmpty()) {
+            Log.w("ApiClient", "收到 401，清除过期 token")
+            runBlocking {
+                context.dataStore.edit { it.remove(PrefsKeys.TOKEN) }
+            }
+        }
+
+        response
     }
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
