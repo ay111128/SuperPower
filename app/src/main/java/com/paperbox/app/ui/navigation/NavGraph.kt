@@ -167,6 +167,10 @@ fun AppNavGraph() {
                         // 通知素材列表页：有素材被删了，回来后刷新 + 提示
                         navController.previousBackStackEntry?.savedStateHandle?.set("materials_changed", "已删除")
                         navController.popBackStack()
+                    },
+                    onMaterialUpdated = {
+                        // 通知素材列表页：内容已编辑，回来后刷新 + 提示（不返回，用户继续看图）
+                        navController.previousBackStackEntry?.savedStateHandle?.set("materials_changed", "已保存")
                     }
                 )
             }

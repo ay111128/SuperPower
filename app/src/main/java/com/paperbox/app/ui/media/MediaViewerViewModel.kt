@@ -93,6 +93,48 @@ class MediaViewerViewModel @Inject constructor(
         }
     }
 
+    /** 拉取全部标签（编辑弹窗的可选标签词表） */
+    fun fetchTags(onResult: (List<String>) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val response = withContext(Dispatchers.IO) {
+                    apiClient.apiService.getTags()
+                }
+                onResult(if (response.isSuccessful) response.body()?.tags ?: emptyList() else emptyList())
+            } catch (_: Exception) {
+                onResult(emptyList())
+            }
+        }
+    }
+
+    /** 编辑素材：名称 / 描述 / 标签 */
+    fun updateMaterial(
+        materialId: String,
+        name: String,
+        remark: String,
+        tags: List<String>,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val response = apiClient.apiService.updateMaterial(
+                        materialId,
+                        mapOf("name" to name, "remark" to remark, "tags" to tags)
+                    )
+                    if (!response.isSuccessful) {
+                        @Suppress("DEPRECATION")
+                        val code = response.code()
+                        throw Exception("HTTP $code")
+                    }
+                }
+                onResult(true, "已保存")
+            } catch (e: Exception) {
+                onResult(false, "保存失败：${e.message}")
+            }
+        }
+    }
+
     /** 删除素材 */
     fun deleteMaterial(
         materialId: String,

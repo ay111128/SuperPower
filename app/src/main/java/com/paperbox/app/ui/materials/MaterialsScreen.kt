@@ -6,8 +6,10 @@ import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -44,13 +46,13 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Search
@@ -655,14 +657,14 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                 modifier = Modifier.clickable { viewModel.downloadMaterial() }
             )
             ListItem(
-                headlineContent = { Text("编辑标签") },
-                supportingContent = { Text("修改素材所属标签") },
+                headlineContent = { Text("编辑素材") },
+                supportingContent = { Text("名称、描述、标签") },
                 leadingContent = {
                     Surface(shape = RoundedCornerShape(11.dp), color = Color(0xFFFFF3E0), modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Default.Label, contentDescription = null, modifier = Modifier.padding(8.dp), tint = Color(0xFFED8936))
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.padding(8.dp), tint = Color(0xFFED8936))
                     }
                 },
-                modifier = Modifier.clickable { viewModel.showTagDialogForMaterial() }
+                modifier = Modifier.clickable { viewModel.showEditDialogForMaterial() }
             )
             ListItem(
                 headlineContent = { Text("删除素材", color = MaterialTheme.colorScheme.error) },
@@ -678,22 +680,42 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
         }
     }
 
-    // ── 编辑标签弹窗 ──
-    if (state.showTagDialog) {
+    // ── 编辑素材弹窗：名称 + 描述 + 标签 ──
+    if (state.showEditDialog) {
         val availableTags = remember(state.tags, state.selectedMaterial) {
-            state.tags.ifEmpty { listOf("设计稿", "产品图", "封面", "图标", "合同") }
+            (state.tags + (state.selectedMaterial?.tags ?: emptyList())).distinct()
+                .ifEmpty { listOf("设计稿", "产品图", "封面", "图标", "合同") }
         }
         AlertDialog(
-            onDismissRequest = { viewModel.dismissTagDialog() },
-            title = { Text("编辑标签", fontWeight = FontWeight.Bold) },
+            onDismissRequest = { viewModel.dismissEditDialog() },
+            title = { Text("编辑素材", fontWeight = FontWeight.Bold) },
             text = {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = state.nameDraft,
+                        onValueChange = { viewModel.updateNameDraft(it) },
+                        label = { Text("名称") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = state.remarkDraft,
+                        onValueChange = { viewModel.updateRemarkDraft(it) },
+                        label = { Text("描述") },
+                        minLines = 2,
+                        maxLines = 4,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Text(
-                        "编辑「${state.selectedMaterial?.name}」的标签",
+                        "标签（最多10个）",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.height(16.dp))
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -719,10 +741,13 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                 }
             },
             confirmButton = {
-                TextButton(onClick = { viewModel.saveMaterialTags() }) { Text("保存") }
+                TextButton(
+                    enabled = state.nameDraft.isNotBlank(),
+                    onClick = { viewModel.saveMaterial() }
+                ) { Text("保存") }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissTagDialog() }) { Text("取消") }
+                TextButton(onClick = { viewModel.dismissEditDialog() }) { Text("取消") }
             }
         )
     }
@@ -814,6 +839,7 @@ private fun FilterDropdown(
 }
 
 // ── 网格卡片 ──
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MaterialGridCard(
     material: MaterialItem,
@@ -829,7 +855,11 @@ private fun MaterialGridCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            // 点击 → 全屏查看；长按 → 操作菜单（与全屏页手势统一，卡片上不放 ⋮ 保持简洁）
+            .combinedClickable(
+                onClick = { onClick() },
+                onLongClick = { onMore() }
+            )
     ) {
         Column {
             // 缩略图区域
@@ -908,12 +938,11 @@ private fun MaterialGridCard(
                 }
             }
 
-            // 信息区
+            // 信息区：只有标签，不放操作按钮（长按卡片出菜单，保持卡片简洁）
             Column(
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                // 标签行
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {

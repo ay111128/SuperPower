@@ -7,22 +7,42 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -40,6 +60,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.MediaItem
@@ -60,7 +82,7 @@ private const val VIEW_NORMAL = 0
 private const val VIEW_FULLSCREEN = 1
 private const val VIEW_PURE = 2
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun MediaViewerScreen(
     materialId: String,
@@ -69,20 +91,23 @@ fun MediaViewerScreen(
     materialsJson: String? = null,
     currentIndex: Int = 0,
     onDeleted: () -> Unit = onBack,
+    onMaterialUpdated: () -> Unit = {},
     viewModel: MediaViewerViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // 解析素材列表
-    val materials = remember(materialsJson) {
-        if (!materialsJson.isNullOrBlank()) {
-            try {
-                val type = Types.newParameterizedType(List::class.java, MaterialItem::class.java)
-                Moshi.Builder().build().adapter<List<MaterialItem>>(type).fromJson(materialsJson) ?: emptyList()
-            } catch (_: Exception) { emptyList() }
-        } else emptyList()
+    // 解析素材列表（var：编辑保存后就地更新，翻页不回退到旧数据）
+    var materials by remember(materialsJson) {
+        mutableStateOf(
+            if (!materialsJson.isNullOrBlank()) {
+                try {
+                    val type = Types.newParameterizedType(List::class.java, MaterialItem::class.java)
+                    Moshi.Builder().build().adapter<List<MaterialItem>>(type).fromJson(materialsJson) ?: emptyList()
+                } catch (_: Exception) { emptyList() }
+            } else emptyList()
+        )
     }
     val hasMultiple = materials.size > 1
 
@@ -112,6 +137,27 @@ fun MediaViewerScreen(
     var viewState by remember { mutableIntStateOf(VIEW_FULLSCREEN) }
     // 跟踪图片缩放状态，缩放时禁止 Pager 滑动
     var isImageZoomed by remember { mutableStateOf(false) }
+
+    // ── 编辑弹窗状态 ──
+    var showEditDialog by remember { mutableStateOf(false) }
+    var nameDraft by remember { mutableStateOf("") }
+    var remarkDraft by remember { mutableStateOf("") }
+    var tagDraft by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var availableTags by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isSaving by remember { mutableStateOf(false) }
+
+    fun openEditDialog() {
+        nameDraft = currentMaterial.name
+        remarkDraft = currentMaterial.remark
+        tagDraft = currentMaterial.tags.toSet()
+        // 先展示素材已有标签，随后端词表补齐
+        availableTags = currentMaterial.tags
+        showMenu = false
+        showEditDialog = true
+        viewModel.fetchTags { tags ->
+            availableTags = (tags + currentMaterial.tags).distinct()
+        }
+    }
 
     BackHandler {
         when (viewState) {
@@ -185,33 +231,89 @@ fun MediaViewerScreen(
         }
     }
 
-    // 长按菜单弹窗
+    // 长按/⋮ 菜单：底部弹窗，编辑 / 下载 / 删除 三项竖排（与列表页「更多操作」统一）
     if (showMenu) {
-        AlertDialog(
+        ModalBottomSheet(
             onDismissRequest = { showMenu = false },
-            title = { Text("素材操作", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
-            text = { Text("选择要执行的操作") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showMenu = false
-                    scope.launch {
-                        val ext = if (currentMaterial.type.contains("png")) ".png"
-                                  else if (currentMaterial.type.startsWith("video")) ".mp4"
-                                  else ".jpg"
-                        viewModel.downloadFile(
-                            materialId = currentMaterial.id,
-                            filename = "${currentMaterial.id}$ext",
-                            saveAsOriginal = true
-                        ) { success, msg ->
-                            scope.launch { snackbarHostState.showSnackbar(msg) }
-                        }
+            shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
+        ) {
+            Text(
+                currentMaterial.name.ifBlank { "素材操作" },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                textAlign = TextAlign.Center
+            )
+            ListItem(
+                headlineContent = { Text("编辑素材") },
+                supportingContent = { Text("名称、描述、标签") },
+                leadingContent = {
+                    Surface(
+                        shape = RoundedCornerShape(11.dp),
+                        color = Color(0xFFFFF3E0),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.padding(8.dp),
+                            tint = Color(0xFFED8936)
+                        )
                     }
-                }) {
-                    Text("下载", color = MaterialTheme.colorScheme.primary)
+                },
+                modifier = Modifier.clickable { openEditDialog() }
+            )
+            ListItem(
+                headlineContent = { Text("下载素材") },
+                supportingContent = { Text("保存到本地") },
+                leadingContent = {
+                    Surface(
+                        shape = RoundedCornerShape(11.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.FileDownload,
+                            contentDescription = null,
+                            modifier = Modifier.padding(8.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                },
+                modifier = Modifier.clickable {
+                    showMenu = false
+                    val ext = if (currentMaterial.type.contains("png")) ".png"
+                              else if (currentMaterial.type.startsWith("video")) ".mp4"
+                              else ".jpg"
+                    viewModel.downloadFile(
+                        materialId = currentMaterial.id,
+                        filename = "${currentMaterial.id}$ext",
+                        saveAsOriginal = true
+                    ) { _, msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = {
+            )
+            ListItem(
+                headlineContent = { Text("删除素材", color = MaterialTheme.colorScheme.error) },
+                supportingContent = { Text("删除后不可恢复", color = Color(0xFFF8A3A3)) },
+                leadingContent = {
+                    Surface(
+                        shape = RoundedCornerShape(11.dp),
+                        color = Color(0xFFFEE2E2),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.padding(8.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                },
+                modifier = Modifier.clickable {
                     showMenu = false
                     // 成功 → 立刻通知列表页刷新并返回；失败 → 顶层 Snackbar 提示
                     viewModel.deleteMaterial(currentMaterial.id) { success, msg ->
@@ -221,9 +323,114 @@ fun MediaViewerScreen(
                             scope.launch { snackbarHostState.showSnackbar(msg) }
                         }
                     }
-                }) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
                 }
+            )
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+
+    // ── 编辑弹窗：名称 + 描述 + 标签（后端 PATCH 均已支持） ──
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isSaving) showEditDialog = false },
+            title = { Text("编辑素材", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = nameDraft,
+                        onValueChange = { if (it.length <= 200) nameDraft = it },
+                        label = { Text("名称") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = remarkDraft,
+                        onValueChange = { if (it.length <= 500) remarkDraft = it },
+                        label = { Text("描述") },
+                        minLines = 2,
+                        maxLines = 4,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "标签（最多10个）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (availableTags.isEmpty()) {
+                            Text(
+                                "暂无可用标签",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        availableTags.forEach { tag ->
+                            val isSelected = tag in tagDraft
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                       else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.clickable {
+                                    tagDraft = if (isSelected) {
+                                        tagDraft - tag
+                                    } else if (tagDraft.size < 10) {
+                                        tagDraft + tag
+                                    } else tagDraft
+                                }
+                            ) {
+                                Text(
+                                    text = tag,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary
+                                           else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = nameDraft.isNotBlank() && !isSaving,
+                    onClick = {
+                        isSaving = true
+                        viewModel.updateMaterial(
+                            materialId = currentMaterial.id,
+                            name = nameDraft.trim(),
+                            remark = remarkDraft.trim(),
+                            tags = tagDraft.toList()
+                        ) { success, msg ->
+                            isSaving = false
+                            if (success) {
+                                // 就地更新列表与当前页，翻页不回退旧数据
+                                val updated = currentMaterial.copy(
+                                    name = nameDraft.trim(),
+                                    remark = remarkDraft.trim(),
+                                    tags = tagDraft.toList()
+                                )
+                                materials = materials.map { if (it.id == updated.id) updated else it }
+                                currentMaterial = updated
+                                showEditDialog = false
+                                onMaterialUpdated()
+                            }
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        }
+                    }
+                ) {
+                    Text(if (isSaving) "保存中…" else "保存")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) { Text("取消") }
             }
         )
     }
@@ -286,6 +493,15 @@ fun MediaViewerScreen(
                                 )
                             }
                         },
+                        actions = {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(
+                                    Icons.Default.MoreVert,
+                                    contentDescription = "更多操作",
+                                    tint = Color.White
+                                )
+                            }
+                        },
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = Color.Black.copy(alpha = 0.6f)
                         )
@@ -328,6 +544,17 @@ fun MediaViewerScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回",
+                            tint = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                    // 常显操作入口（长按是隐藏手势，新用户发现不了）
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    ) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = "更多操作",
                             tint = Color.White.copy(alpha = 0.8f)
                         )
                     }

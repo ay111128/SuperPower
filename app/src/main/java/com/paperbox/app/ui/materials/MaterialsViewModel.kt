@@ -65,10 +65,12 @@ data class MaterialsUiState(
     // 弹窗状态
     val showUploadSheet: Boolean = false,
     val showMoreSheet: Boolean = false,
-    val showTagDialog: Boolean = false,
+    val showEditDialog: Boolean = false,
     val showDeleteDialog: Boolean = false,
     val selectedMaterial: MaterialItem? = null,
     val tagDraft: Set<String> = emptySet(),
+    val nameDraft: String = "",
+    val remarkDraft: String = "",
     // 消息
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false, // 下拉刷新中（不隐藏列表，只转顶部指示器）
@@ -428,45 +430,67 @@ class MaterialsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(showMoreSheet = false)
     }
 
-    fun showTagDialogForMaterial() {
+    fun showEditDialogForMaterial() {
         val material = _uiState.value.selectedMaterial ?: return
         _uiState.value = _uiState.value.copy(
             showMoreSheet = false,
-            showTagDialog = true,
-            tagDraft = material.tags.toSet()
+            showEditDialog = true,
+            tagDraft = material.tags.toSet(),
+            nameDraft = material.name,
+            remarkDraft = material.remark
         )
+    }
+
+    fun updateNameDraft(value: String) {
+        _uiState.value = _uiState.value.copy(nameDraft = value.take(200))
+    }
+
+    fun updateRemarkDraft(value: String) {
+        _uiState.value = _uiState.value.copy(remarkDraft = value.take(500))
     }
 
     fun toggleTagDraft(tag: String) {
         val current = _uiState.value.tagDraft.toMutableSet()
-        if (current.contains(tag)) current.remove(tag) else current.add(tag)
+        if (current.contains(tag)) current.remove(tag)
+        else if (current.size < 10) current.add(tag) // 后端 MAX_TAGS = 10
         _uiState.value = _uiState.value.copy(tagDraft = current)
     }
 
-    fun dismissTagDialog() {
-        _uiState.value = _uiState.value.copy(showTagDialog = false)
+    fun dismissEditDialog() {
+        _uiState.value = _uiState.value.copy(showEditDialog = false)
     }
 
-    fun saveMaterialTags() {
+    fun saveMaterial() {
         val material = _uiState.value.selectedMaterial ?: return
+        val name = _uiState.value.nameDraft.trim()
+        if (name.isEmpty()) {
+            _uiState.value = _uiState.value.copy(toastMessage = "名称不能为空")
+            return
+        }
+        val remark = _uiState.value.remarkDraft.trim()
         val tags = _uiState.value.tagDraft.toList()
         viewModelScope.launch {
             try {
                 val response = apiService.updateMaterial(
                     material.id,
-                    mapOf("tags" to tags)
+                    mapOf("name" to name, "remark" to remark, "tags" to tags)
                 )
                 if (response.isSuccessful) {
                     _uiState.value = _uiState.value.copy(
-                        showTagDialog = false,
-                        toastMessage = "标签已更新"
+                        showEditDialog = false,
+                        toastMessage = "已保存"
                     )
                     loadMaterials()
                     loadFilterCounts()
+                } else {
+                    // HTTP 4xx/5xx 也要有反馈，否则看起来像点了没反应
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = "保存失败：HTTP ${response.code()}"
+                    )
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
-                    toastMessage = "更新失败：${e.message}"
+                    toastMessage = "保存失败：${e.message}"
                 )
             }
         }
