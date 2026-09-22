@@ -71,6 +71,7 @@ data class MaterialsUiState(
     val tagDraft: Set<String> = emptySet(),
     // 消息
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false, // 下拉刷新中（不隐藏列表，只转顶部指示器）
     val uploadSuccess: Int = 0,
     val toastMessage: String? = null,
     val errorMessage: String? = null
@@ -98,11 +99,15 @@ class MaterialsViewModel @Inject constructor(
         private const val PAGE_SIZE = 50
     }
 
-    fun loadMaterials(offset: Int = 0) {
+    fun loadMaterials(offset: Int = 0, fromPull: Boolean = false) {
         viewModelScope.launch {
             try {
                 if (offset == 0) {
-                    _uiState.value = _uiState.value.copy(isLoading = true)
+                    _uiState.value = if (fromPull) {
+                        _uiState.value.copy(isRefreshing = true)
+                    } else {
+                        _uiState.value.copy(isLoading = true)
+                    }
                 }
                 val state = _uiState.value
                 val tagsParam = state.selectedTags.joinToString(",").ifBlank { null }
@@ -135,6 +140,7 @@ class MaterialsViewModel @Inject constructor(
                         total = body.total,
                         hasMore = offset + body.items.size < body.total,
                         isLoading = false,
+                        isRefreshing = false,
                         isLoadingMore = false
                     )
                     // 异步加载视频缩略图
@@ -142,6 +148,7 @@ class MaterialsViewModel @Inject constructor(
                 } else {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
+                        isRefreshing = false,
                         isLoadingMore = false
                     )
                 }
@@ -150,10 +157,23 @@ class MaterialsViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(
                     errorMessage = "加载失败：${e.message}",
                     isLoading = false,
+                    isRefreshing = false,
                     isLoadingMore = false
                 )
             }
         }
+    }
+
+    /** 下拉刷新：静默重载第一页 + 刷新筛选计数，不闪全屏 loading */
+    fun refresh() {
+        loadMaterials(fromPull = true)
+        loadFilterCounts()
+    }
+
+    /** 全屏查看页删除成功返回：提示 + 静默刷新，被删素材立即从列表消失 */
+    fun onMaterialDeletedRemotely(message: String) {
+        showToast(message)
+        refresh()
     }
 
     fun loadMore() {

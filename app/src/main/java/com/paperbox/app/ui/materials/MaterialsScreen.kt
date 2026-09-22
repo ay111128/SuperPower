@@ -8,6 +8,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -71,6 +73,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.border
 import androidx.compose.material3.SnackbarHost
@@ -108,6 +111,7 @@ import coil.request.ImageRequest
 import com.paperbox.app.BuildConfig
 import com.paperbox.app.data.api.models.MaterialItem
 import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import java.net.URLEncoder
 import kotlinx.coroutines.launch
 
@@ -181,6 +185,18 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
         state.toastMessage?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearMessages()
+        }
+    }
+
+    // 全屏查看页删除成功返回：收到信号 → 提示 + 静默刷新，被删素材立即消失
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    LaunchedEffect(currentBackStackEntry) {
+        val handle = currentBackStackEntry?.savedStateHandle ?: return@LaunchedEffect
+        handle.getStateFlow("materials_changed", "").collect { msg ->
+            if (msg.isNotEmpty()) {
+                handle["materials_changed"] = ""
+                viewModel.onMaterialDeletedRemotely(msg)
+            }
         }
     }
 
@@ -394,6 +410,11 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
             }
 
             // ── 素材区 ──
+            PullToRefreshBox(
+                isRefreshing = state.isRefreshing,
+                onRefresh = { viewModel.refresh() },
+                modifier = Modifier.fillMaxSize()
+            ) {
             if (state.isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Green)
@@ -403,7 +424,11 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // 内层可滚动：让下拉手势能传给 PullToRefreshBox，内容仍居中
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Text(
                             "暂无匹配的素材",
                             fontSize = 15.sp,
@@ -536,6 +561,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         }
                     }
                 }
+            }
             }
         }
     }

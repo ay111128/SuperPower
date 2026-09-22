@@ -162,7 +162,12 @@ fun AppNavGraph() {
                     materialType = materialType,
                     materialsJson = materialsJson,
                     currentIndex = currentIndex,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onDeleted = {
+                        // 通知素材列表页：有素材被删了，回来后刷新 + 提示
+                        navController.previousBackStackEntry?.savedStateHandle?.set("materials_changed", "已删除")
+                        navController.popBackStack()
+                    }
                 )
             }
         }

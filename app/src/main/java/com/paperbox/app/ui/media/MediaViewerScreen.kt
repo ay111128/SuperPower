@@ -68,6 +68,7 @@ fun MediaViewerScreen(
     onBack: () -> Unit,
     materialsJson: String? = null,
     currentIndex: Int = 0,
+    onDeleted: () -> Unit = onBack,
     viewModel: MediaViewerViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -212,12 +213,12 @@ fun MediaViewerScreen(
             dismissButton = {
                 TextButton(onClick = {
                     showMenu = false
-                    scope.launch {
-                        viewModel.deleteMaterial(currentMaterial.id) { success, msg ->
-                            scope.launch {
-                                snackbarHostState.showSnackbar(msg)
-                                if (success) onBack()
-                            }
+                    // 成功 → 立刻通知列表页刷新并返回；失败 → 顶层 Snackbar 提示
+                    viewModel.deleteMaterial(currentMaterial.id) { success, msg ->
+                        if (success) {
+                            onDeleted()
+                        } else {
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
                         }
                     }
                 }) {
@@ -259,11 +260,12 @@ fun MediaViewerScreen(
         }
     }
 
+    // Snackbar 挂在最外层：普通/全屏/纯净三种模式都能显示（原来只挂在普通模式，全屏删除失败无提示）
+    Box(modifier = Modifier.fillMaxSize()) {
     when (viewState) {
         VIEW_NORMAL -> {
             Scaffold(
                 containerColor = Color.Black,
-                snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                     TopAppBar(
                         title = {
@@ -355,6 +357,13 @@ fun MediaViewerScreen(
                 )
             }
         }
+    }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 40.dp)
+        )
     }
 }
 
