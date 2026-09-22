@@ -184,9 +184,6 @@ private fun SpotMatchBody(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 when {
-                    state.form.length <= 0 && state.form.width <= 0 && state.form.height <= 0 ->
-                        Text("至少输入一个维度即可查看匹配结果", fontSize = 12.sp, color = QuoteMuted)
-
                     state.spotMatches.isEmpty() ->
                         Text("没有匹配的现货尺寸，可以试试放宽容差", fontSize = 12.sp, color = QuoteMuted)
 

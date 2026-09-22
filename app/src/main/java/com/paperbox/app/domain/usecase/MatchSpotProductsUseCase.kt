@@ -51,7 +51,7 @@ class MatchSpotProductsUseCase @Inject constructor() {
         val checkL = l > 0
         val checkW = w > 0
         val checkH = h > 0
-        if (!checkL && !checkW && !checkH) return emptyList()
+        val noDimension = !checkL && !checkW && !checkH
 
         // 容差为 0 时只有完全一致的尺寸能命中，score 会走 exact 分支，这里避免除零
         val filledCount = listOf(checkL, checkW, checkH).count { it }
@@ -62,6 +62,19 @@ class MatchSpotProductsUseCase @Inject constructor() {
             .filter { category == null || category == "all" || it.category == category }
             .mapNotNull { product ->
                 val parsed = parseSize(product.size) ?: return@mapNotNull null
+
+                // 没有任何维度输入时，显示全部现货
+                if (noDimension) {
+                    return@mapNotNull SpotMatch(
+                        category = product.category,
+                        size = product.size,
+                        price = product.price,
+                        weight = product.weight,
+                        score = 0,
+                        exact = false,
+                        totalDiff = 0.0
+                    )
+                }
 
                 // 只检查已填维度
                 if (checkL) { val d = abs(parsed.first - l); if (d > tolerance) return@mapNotNull null }
