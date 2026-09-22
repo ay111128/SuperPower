@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,9 +23,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,11 +40,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Size
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -401,6 +401,27 @@ private val CardTotalBg = Color(0xFFF0F7F0)
 private val CardTextGray = Color(0xFF999999)
 private val CardTextDesc = Color(0xFF666666)
 private val CardTextDark = Color(0xFF333333)
+private val CellDivider = Color(0xFFCCCCCC)
+
+// 表格列权重（按设计稿 36/90/85/45/45/54 dp 的比例），表头/数据行/合计行共用 → 列永远对齐且自适应屏宽
+private val CardColWeights = listOf(36f, 90f, 85f, 45f, 45f, 54f)
+private val CardColWeightSum = CardColWeights.sum()
+
+/**
+ * 按列权重在整行高度上画竖向分隔线——画在行级（而不是单个单元格 Text 上），行多高线就多高，永不断线。
+ * [afterCols]：0-based 列下标集合，表示在该列右缘画线；默认画全部内部边界。
+ */
+private fun DrawScope.drawTableColumns(color: Color, afterCols: Set<Int> = setOf(0, 1, 2, 3, 4)) {
+    val stroke = 1.dp.toPx()
+    var acc = 0f
+    CardColWeights.forEachIndexed { i, w ->
+        acc += w
+        if (i in afterCols && i < CardColWeights.lastIndex) {
+            val x = size.width * acc / CardColWeightSum
+            drawLine(color, Offset(x, 0f), Offset(x, size.height), strokeWidth = stroke)
+        }
+    }
+}
 
 @Composable
 private fun QuoteDocumentSection(
@@ -441,11 +462,26 @@ private fun QuoteDocumentSection(
         // ── DescArea: 描述文字 ──
         CardDescArea(isEnglish)
 
-        // ── ColumnBar: 表头 ──
-        CardColumnBar(isEnglish)
-
-        // ── DataArea: 数据行 + 合计 ──
-        CardDataArea(state, result, enabledFees, isEnglish)
+        // ── 表格主体：表头 + 数据行 + 合计 ──
+        // 用 drawWithContent 在最上层画一圈外框（children 的背景会盖住 border，所以不能用 Modifier.border）
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .drawWithContent {
+                    drawContent()
+                    val stroke = 1.dp.toPx()
+                    val half = stroke / 2
+                    drawRect(
+                        color = CellDivider,
+                        topLeft = Offset(half, half),
+                        size = Size(size.width - stroke, size.height - stroke),
+                        style = Stroke(width = stroke)
+                    )
+                }
+        ) {
+            CardColumnBar(isEnglish)
+            CardDataArea(state, result, enabledFees, isEnglish)
+        }
 
         // ── BottomSection: 联系信息 + 二维码 ──
         CardBottomSection(isEnglish)
@@ -529,51 +565,31 @@ private fun CardColumnBar(isEnglish: Boolean = false) {
             .fillMaxWidth()
             .height(30.dp)
             .background(CardGreen)
-            .padding(horizontal = 16.dp),
+            // 竖线画在整行高度上，与数据列同一套权重 → 表头/数据永远对齐
+            .drawBehind { drawTableColumns(dividerColor) },
         verticalAlignment = Alignment.CenterVertically
     ) {
-        CardHeaderText(if (isEnglish) "No." else "序号", 36.dp, TextAlign.Center, true, dividerColor)
-        CardHeaderText(if (isEnglish) "Product" else "产品名称", 90.dp, TextAlign.Center, true, dividerColor)
-        CardHeaderText(if (isEnglish) "Spec" else "规格", 85.dp, TextAlign.Center, true, dividerColor)
-        CardHeaderText(if (isEnglish) "Qty" else "数量", 45.dp, TextAlign.Center, true, dividerColor)
-        CardHeaderText(if (isEnglish) "Price" else "单价", 45.dp, TextAlign.Center, true, dividerColor)
-        CardHeaderText(if (isEnglish) "Amount" else "金额", 54.dp, TextAlign.Center, false, dividerColor)
+        CardHeaderText(if (isEnglish) "No." else "序号", CardColWeights[0])
+        CardHeaderText(if (isEnglish) "Product" else "产品名称", CardColWeights[1])
+        CardHeaderText(if (isEnglish) "Spec (cm)" else "规格（cm）", CardColWeights[2])
+        CardHeaderText(if (isEnglish) "Qty" else "数量", CardColWeights[3])
+        CardHeaderText(if (isEnglish) "Price" else "单价", CardColWeights[4])
+        CardHeaderText(if (isEnglish) "Amount" else "金额", CardColWeights[5])
     }
 }
 
 @Composable
-private fun RowScope.CardHeaderText(
-    text: String, width: Dp, align: TextAlign,
-    showEndDivider: Boolean = false, dividerColor: Color = Color.Transparent
-) {
+private fun RowScope.CardHeaderText(text: String, weight: Float) {
     Text(
         text,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
         color = Color.White,
-        textAlign = align,
+        textAlign = TextAlign.Center,
+        maxLines = 1,
         modifier = Modifier
-            .width(width)
-            .drawBehind {
-                if (showEndDivider) {
-                    drawLine(
-                        color = dividerColor,
-                        start = Offset(size.width, 0f),
-                        end = Offset(size.width, size.height),
-                        strokeWidth = 1.dp.toPx()
-                    )
-                }
-            }
-    )
-}
-
-@Composable
-private fun RowScope.CardDivider() {
-    Box(
-        modifier = Modifier
-            .width(1.dp)
-            .height(20.dp)
-            .background(Color(0xFF999999))
+            .weight(weight)
+            .padding(horizontal = 2.dp)
     )
 }
 
@@ -592,7 +608,7 @@ private fun CardDataArea(
         // 主品行
         val unitPrice = if (state.form.orderQuantity > 0)
             result.finalAmount / state.form.orderQuantity else 0.0
-        val spec = "${trimNumber(state.form.length)}×${trimNumber(state.form.width)}×${trimNumber(state.form.height)}mm"
+        val spec = "${trimNumber(state.form.length)}×${trimNumber(state.form.width)}×${trimNumber(state.form.height)}"
 
         CardDataRow(
             index = 1,
@@ -617,18 +633,34 @@ private fun CardDataArea(
             )
         }
 
-        // 合计行
+        // 合计行：标签合并前 5 列（不画内部竖线），金额落在金额列 —— 和 Excel 合并单元格一致
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(36.dp)
                 .background(CardTotalBg)
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.End,
+                .drawBehind { drawTableColumns(CellDivider, afterCols = setOf(4)) },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(if (isEnglish) "Total: " else "合计金额：", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CardTextDark)
-            Text(money(result.finalAmount), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CardGreen)
+            Box(
+                modifier = Modifier
+                    .weight(CardColWeights.subList(0, 5).sum())
+                    .padding(end = 10.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Text(if (isEnglish) "Total: " else "合计金额：", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CardTextDark)
+            }
+            Text(
+                money(result.finalAmount),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = CardGreen,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                modifier = Modifier
+                    .weight(CardColWeights[5])
+                    .padding(horizontal = 6.dp)
+            )
         }
     }
 }
@@ -643,51 +675,58 @@ private fun CardDataRow(
     amount: String,
     isAlt: Boolean
 ) {
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .wrapContentHeight()
             .background(if (isAlt) CardRowAlt else Color.White)
+            // 行高由最高的单元格撑开（长材质名换行也不会断线），竖线/底线都画在整行上
+            .drawBehind {
+                drawTableColumns(CellDivider)
+                val stroke = 0.5.dp.toPx()
+                drawLine(
+                    color = Color(0xFFE0E0E0),
+                    start = Offset(0f, size.height - stroke / 2),
+                    end = Offset(size.width, size.height - stroke / 2),
+                    strokeWidth = stroke
+                )
+            },
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentHeight()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val cellDividerColor = Color(0xFFCCCCCC)
-            Text("$index", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CardTextDark,
-                textAlign = TextAlign.Center, modifier = Modifier.width(36.dp).drawBehind {
-                    drawLine(cellDividerColor, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
-                })
-            Text(name, fontSize = 10.sp, color = CardTextDark,
-                textAlign = TextAlign.Center, modifier = Modifier.width(90.dp).drawBehind {
-                    drawLine(cellDividerColor, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
-                })
-            Text(spec, fontSize = 10.sp, color = CardTextDark,
-                textAlign = TextAlign.Center, modifier = Modifier.width(85.dp).drawBehind {
-                    drawLine(cellDividerColor, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
-                })
-            Text(quantity, fontSize = 10.sp, color = CardTextDark,
-                textAlign = TextAlign.Center, modifier = Modifier.width(45.dp).drawBehind {
-                    drawLine(cellDividerColor, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
-                })
-            Text(unitPrice, fontSize = 10.sp, color = CardTextDark,
-                textAlign = TextAlign.Center, modifier = Modifier.width(45.dp).drawBehind {
-                    drawLine(cellDividerColor, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
-                })
-            Text(amount, fontSize = 10.sp, color = CardGreen,
-                textAlign = TextAlign.Center, modifier = Modifier.width(54.dp))
+        CardDataCell(CardColWeights[0], TextAlign.Center) {
+            Text("$index", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CardTextDark, maxLines = 1)
         }
-        // 底部分割线
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(0.5.dp)
-                .align(Alignment.BottomCenter)
-                .background(Color(0xFFE0E0E0))
-        )
+        CardDataCell(CardColWeights[1], TextAlign.Center) {
+            Text(name, fontSize = 10.sp, color = CardTextDark, textAlign = TextAlign.Center)
+        }
+        CardDataCell(CardColWeights[2], TextAlign.Center) {
+            Text(spec, fontSize = 10.sp, color = CardTextDark, textAlign = TextAlign.Center, maxLines = 2)
+        }
+        CardDataCell(CardColWeights[3], TextAlign.Center) {
+            Text(quantity, fontSize = 10.sp, color = CardTextDark, textAlign = TextAlign.Center, maxLines = 1)
+        }
+        CardDataCell(CardColWeights[4], TextAlign.Center) {
+            Text(unitPrice, fontSize = 10.sp, color = CardTextDark, textAlign = TextAlign.Center, maxLines = 1)
+        }
+        CardDataCell(CardColWeights[5], TextAlign.Center) {
+            Text(amount, fontSize = 10.sp, color = CardGreen, textAlign = TextAlign.Center, maxLines = 1)
+        }
+    }
+}
+
+/** 数据行单元格：按权重占列，内边距撑出统一行高，多行文字自动把整行撑高。 */
+@Composable
+private fun RowScope.CardDataCell(
+    weight: Float,
+    align: TextAlign,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .weight(weight)
+            .padding(horizontal = 6.dp, vertical = 8.dp),
+        contentAlignment = if (align == TextAlign.End) Alignment.CenterEnd else Alignment.Center
+    ) {
+        content()
     }
 }
 
