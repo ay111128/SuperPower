@@ -7,13 +7,13 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -64,15 +65,20 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.drawToBitmap
 import com.paperbox.app.R
+import com.paperbox.app.data.api.models.QuoteHistoryEntry
 import com.paperbox.app.domain.model.ChargeLine
 import com.paperbox.app.domain.model.QuoteComputation
 import kotlinx.coroutines.Dispatchers
@@ -109,8 +115,9 @@ private fun buildDocRows(state: QuoteUiState, result: QuoteComputation, isEnglis
 }
 
 /**
- * 顶栏幽灵按钮：默认只有 1px 半透明白描边（32dp 圆 / 胶囊），按压时浮现 20% 白底。
- * [pill] = true 时按内容横向撑开（用于「保存」），否则固定 32dp 圆形。
+ * 顶栏按钮：裸图标/裸文字，静止时无任何背景和描边。
+ * 按压时浮现一层淡淡的白色圆底作为反馈。
+ * [pill] = true 时按内容横向撑开（用于「保存」），否则固定 32dp。
  */
 @Composable
 private fun TopBarButton(
@@ -123,10 +130,11 @@ private fun TopBarButton(
     Box(
         modifier = Modifier
             .then(if (pill) Modifier.height(32.dp) else Modifier.size(32.dp))
-            .clip(CircleShape)
-            .background(if (pressed) Color.White.copy(alpha = 0.2f) else Color.Transparent)
-            .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape)
-            .then(if (pill) Modifier.padding(horizontal = 14.dp) else Modifier)
+            .background(
+                color = if (pressed) Color.White.copy(alpha = 0.18f) else Color.Transparent,
+                shape = CircleShape
+            )
+            .then(if (pill) Modifier.padding(horizontal = 10.dp) else Modifier)
             .clickable(interactionSource = interactionSource, indication = null) { onClick() },
         contentAlignment = Alignment.Center,
         content = content
@@ -142,7 +150,6 @@ private fun TopBarButton(
 internal fun QuoteResultPage(
     state: QuoteUiState,
     onBack: () -> Unit,
-    onClearTraceCode: () -> Unit,
     onClearError: () -> Unit,
     onToggleLanguage: () -> Unit
 ) {
@@ -287,31 +294,8 @@ internal fun QuoteResultPage(
             QuoteSummaryCard(state, result)
             QuoteBreakdownCard(state, result)
 
-            state.traceCode?.let { code ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFF1F8F3))
-                        .border(1.dp, QuoteGreen.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("追溯码", fontSize = 12.sp, color = QuoteGray66)
-                        Text(
-                            code,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = QuoteGreen
-                        )
-                    }
-                    TextButton(onClick = onClearTraceCode) {
-                        Text("收起", fontSize = 12.sp, color = QuoteMuted)
-                    }
-                }
-            }
+            // 报价历史记录 —— 刻意做小做灰，放在底部不抢戏（原来的追溯码展示，已移除）
+            QuoteHistoryCard(state.history)
 
             state.errorMessage?.let { error ->
                 Row(
@@ -487,6 +471,46 @@ private fun QuoteLineRow(line: ChargeLine) {
     }
 }
 
+/**
+ * 报价历史记录 —— 页面底部的低调小卡：
+ * 尺寸/数量/单价/金额 一行灰字，日期时间（yyyy-MM-dd HH:mm:ss）更小一号；
+ * 整体小字浅灰，不抢上方报价单的戏。无记录时整卡隐藏。
+ */
+@Composable
+private fun QuoteHistoryCard(history: List<QuoteHistoryEntry>) {
+    if (history.isEmpty()) return
+    val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFF5F5F5))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("报价历史记录", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = QuoteMuted)
+
+        history.take(10).forEach { entry ->
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "${trimNumber(entry.length)}×${trimNumber(entry.width)}×${trimNumber(entry.height)} cm" +
+                        " · ${entry.quantity}个" +
+                        " · ${money(entry.unitPrice)}/个" +
+                        " · 合计${money(entry.finalAmount)}",
+                    fontSize = 11.sp,
+                    color = QuoteGray66
+                )
+                Text(
+                    text = dateFormat.format(Date(entry.createdAt)),
+                    fontSize = 9.sp,
+                    color = QuoteMuted
+                )
+            }
+        }
+    }
+}
+
 // ══════════════════════════════════════════════════════════════
 //  报价单文档区域（新设计：报价卡片.pen）
 // ══════════════════════════════════════════════════════════════
@@ -503,22 +527,142 @@ private val CardTextDesc = Color(0xFF666666)
 private val CardTextDark = Color(0xFF333333)
 private val CellDivider = Color(0xFFCCCCCC)
 
-// 表格列权重（按设计稿 36/90/85/45/45/54 dp 的比例），表头/数据行/合计行共用 → 列永远对齐且自适应屏宽
+// 表格列权重（按设计稿 36/90/85/45/45/54 dp 的比例）：仅用于内容放不下/有富余时的分配比例
 private val CardColWeights = listOf(36f, 90f, 85f, 45f, 45f, 54f)
-private val CardColWeightSum = CardColWeights.sum()
+
+/** 表头文案（列名不可编辑，测量下限也用它）。 */
+private fun tableHeaders(isEnglish: Boolean): List<String> =
+    if (isEnglish) listOf("No.", "Product", "Spec (cm)", "Qty", "Price", "Amount")
+    else listOf("序号", "产品名称", "规格（cm）", "数量", "单价", "金额")
 
 /**
- * 按列权重在整行高度上画竖向分隔线——画在行级（而不是单个单元格 Text 上），行多高线就多高，永不断线。
+ * 按实际列宽在整行高度上画竖向分隔线——画在行级（而不是单个单元格 Text 上），行多高线就多高，永不断线。
  * [afterCols]：0-based 列下标集合，表示在该列右缘画线；默认画全部内部边界。
  */
-private fun DrawScope.drawTableColumns(color: Color, afterCols: Set<Int> = setOf(0, 1, 2, 3, 4)) {
+private fun DrawScope.drawTableColumns(color: Color, colWidths: List<Dp>, afterCols: Set<Int> = setOf(0, 1, 2, 3, 4)) {
     val stroke = 1.dp.toPx()
     var acc = 0f
-    CardColWeights.forEachIndexed { i, w ->
-        acc += w
-        if (i in afterCols && i < CardColWeights.lastIndex) {
-            val x = size.width * acc / CardColWeightSum
-            drawLine(color, Offset(x, 0f), Offset(x, size.height), strokeWidth = stroke)
+    colWidths.forEachIndexed { i, w ->
+        acc += w.toPx()
+        if (i in afterCols && i < colWidths.lastIndex) {
+            drawLine(color, Offset(acc, 0f), Offset(acc, size.height), strokeWidth = stroke)
+        }
+    }
+}
+
+/**
+ * 内容决定列宽的分配（全部 px）：
+ * 1. [floor]（硬需求，含表头下限与数字列单行内容）必须先满足；
+ * 2. 有富余时先喂给 [desire] 还没到位的软列（名称/规格，让它们尽量不换行）；
+ * 3. 仍有富余按 [weights] 比例分给各列；
+ * 4. floor 总和超过可用宽时（极端情况）等比压缩，由省略号兜底。
+ */
+private fun distributeCols(
+    availablePx: Float,
+    floor: FloatArray,
+    desire: FloatArray,
+    weights: List<Float>,
+): List<Float> {
+    val out = floor.copyOf()
+    if (availablePx - out.sum() > 1f) {
+        // 软列先按缺口比例吃到不换行的宽度
+        val needy = out.indices.filter { desire[it] > out[it] + 1f }
+        if (needy.isNotEmpty()) {
+            val totalNeed = needy.sumOf { (desire[it] - out[it]).toDouble() }.toFloat()
+            val give = minOf(availablePx - out.sum(), totalNeed)
+            needy.forEach { i -> out[i] += give * ((desire[i] - out[i]) / totalNeed) }
+        }
+        val rest = availablePx - out.sum()
+        if (rest > 1f) {
+            val wSum = weights.sum()
+            for (i in out.indices) out[i] += rest * weights[i] / wSum
+        }
+    } else if (availablePx - out.sum() < -1f) {
+        val scale = availablePx / out.sum()
+        for (i in out.indices) out[i] *= scale
+    }
+    return out.toList()
+}
+
+private data class TablePlan(
+    val widths: List<Dp>,
+    val cellFont: TextUnit,
+    val totalFont: TextUnit,
+)
+
+/**
+ * 内容决定列宽（两遍测量）：
+ * - floor = max(表头, 数字列内容) + 内边距 —— 表头永远是下限，名称/规格可换行所以内容不进 floor；
+ * - 数字列（数量/单价/金额）必须单行放得下，放不下就字号 10→9→8 逐级缩；
+ * - 富余先让名称/规格拿到不换行的宽度，再按设计权重分。
+ * 表头、数据行、合计行共用这一套宽度 → 永远对齐，且任何一列内容变长都有同一套逻辑兜着。
+ */
+@Composable
+private fun rememberTablePlan(
+    tableWidth: Dp,
+    rows: List<DocRow>,
+    totalText: String,
+    isEnglish: Boolean,
+): TablePlan {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    return remember(tableWidth, rows, totalText, isEnglish, measurer, density) {
+        with(density) {
+            val avail = tableWidth.toPx()
+            val pad = 12.dp.toPx() // 单元格左右各 6dp
+            val headers = tableHeaders(isEnglish)
+            val headerStyle = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold)
+
+            fun textW(s: String, style: TextStyle): Float =
+                if (s.isEmpty()) 0f else measurer.measure(s, style).size.width.toFloat()
+
+            val headerW = FloatArray(6) { textW(headers[it], headerStyle) }
+
+            fun floorsDesires(cellFont: TextUnit, totalFont: TextUnit): Pair<FloatArray, FloatArray> {
+                val cellStyle = TextStyle(fontSize = cellFont)
+                val boldCell = cellStyle.copy(fontWeight = FontWeight.Bold)
+                val floor = FloatArray(6)
+                val desire = FloatArray(6)
+                // 0 序号（行号，硬）
+                val idxW = rows.indices.maxOfOrNull { textW("${it + 1}", boldCell) } ?: 0f
+                floor[0] = maxOf(headerW[0], idxW) + pad
+                desire[0] = floor[0]
+                // 1 产品名称（软：放不下可换 2 行）
+                val nameW = rows.maxOfOrNull { textW(it.name, cellStyle) } ?: 0f
+                floor[1] = headerW[1] + pad
+                desire[1] = nameW + pad
+                // 2 规格（软）
+                val specW = rows.maxOfOrNull { textW(it.spec, cellStyle) } ?: 0f
+                floor[2] = headerW[2] + pad
+                desire[2] = specW + pad
+                // 3 数量（硬，必须单行）
+                val qtyW = rows.maxOfOrNull { textW(it.quantity, cellStyle) } ?: 0f
+                floor[3] = maxOf(headerW[3], qtyW) + pad
+                desire[3] = floor[3]
+                // 4 单价（硬）
+                val priceW = rows.maxOfOrNull { textW(it.unitPrice, cellStyle) } ?: 0f
+                floor[4] = maxOf(headerW[4], priceW) + pad
+                desire[4] = floor[4]
+                // 5 金额（硬）：数据行金额与合计金额（粗体大一号）取最大 —— 这就是这次撑宽的列
+                val amtW = rows.maxOfOrNull { textW(it.amount, cellStyle) } ?: 0f
+                val totalW = textW(totalText, TextStyle(fontSize = totalFont, fontWeight = FontWeight.Bold))
+                floor[5] = maxOf(headerW[5], amtW, totalW) + pad
+                desire[5] = floor[5]
+                return floor to desire
+            }
+
+            var chosen: TablePlan? = null
+            for ((cf, tf) in listOf(10.sp to 13.sp, 9.sp to 12.sp, 8.sp to 11.sp)) {
+                val (floor, desire) = floorsDesires(cf, tf)
+                // 每轮都会算一份（放不下时靠 distribute 的等比压缩兜底），放得下就停
+                chosen = TablePlan(
+                    widths = distributeCols(avail, floor, desire, CardColWeights).map { it.toDp() },
+                    cellFont = cf,
+                    totalFont = tf
+                )
+                if (floor.sum() <= avail) break
+            }
+            chosen!!
         }
     }
 }
@@ -567,8 +711,9 @@ private fun QuoteDocumentSection(
         CardDescArea(isEnglish)
 
         // ── 表格主体：表头 + 数据行 + 合计 ──
-        // 用 drawWithContent 在最上层画一圈外框（children 的背景会盖住 border，所以不能用 Modifier.border）
-        Column(
+        // 列宽由内容测量决定（rememberTablePlan），表头/数据/合计共用同一套宽；
+        // 外框用 drawWithContent 画在最上层（children 的背景会盖住 border，所以不能用 Modifier.border）
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .drawWithContent {
@@ -583,8 +728,11 @@ private fun QuoteDocumentSection(
                     )
                 }
         ) {
-            CardColumnBar(isEnglish)
-            CardDataArea(rows, totalText, isEnglish, editing, onEditRow, onEditTotal)
+            val plan = rememberTablePlan(maxWidth, rows, totalText, isEnglish)
+            Column(Modifier.fillMaxWidth()) {
+                CardColumnBar(plan.widths, isEnglish)
+                CardDataArea(rows, totalText, plan, isEnglish, editing, onEditRow, onEditTotal)
+            }
         }
 
         // ── BottomSection: 联系信息 + 二维码 ──
@@ -662,28 +810,24 @@ private fun CardDescArea(isEnglish: Boolean = false) {
 }
 
 @Composable
-private fun CardColumnBar(isEnglish: Boolean = false) {
+private fun CardColumnBar(colWidths: List<Dp>, isEnglish: Boolean = false) {
     val dividerColor = Color.White.copy(alpha = 0.4f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(30.dp)
             .background(CardGreen)
-            // 竖线画在整行高度上，与数据列同一套权重 → 表头/数据永远对齐
-            .drawBehind { drawTableColumns(dividerColor) },
+            // 竖线画在整行高度上，用同一套实测列宽 → 表头/数据永远对齐
+            .drawBehind { drawTableColumns(dividerColor, colWidths) },
         verticalAlignment = Alignment.CenterVertically
     ) {
-        CardHeaderText(if (isEnglish) "No." else "序号", CardColWeights[0])
-        CardHeaderText(if (isEnglish) "Product" else "产品名称", CardColWeights[1])
-        CardHeaderText(if (isEnglish) "Spec (cm)" else "规格（cm）", CardColWeights[2])
-        CardHeaderText(if (isEnglish) "Qty" else "数量", CardColWeights[3])
-        CardHeaderText(if (isEnglish) "Price" else "单价", CardColWeights[4])
-        CardHeaderText(if (isEnglish) "Amount" else "金额", CardColWeights[5])
+        val headers = tableHeaders(isEnglish)
+        headers.forEachIndexed { i, h -> CardHeaderText(h, colWidths[i]) }
     }
 }
 
 @Composable
-private fun RowScope.CardHeaderText(text: String, weight: Float) {
+private fun RowScope.CardHeaderText(text: String, width: Dp) {
     Text(
         text,
         fontSize = 11.sp,
@@ -691,8 +835,9 @@ private fun RowScope.CardHeaderText(text: String, weight: Float) {
         color = Color.White,
         textAlign = TextAlign.Center,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier
-            .weight(weight)
+            .width(width)
             .padding(horizontal = 2.dp)
     )
 }
@@ -701,6 +846,7 @@ private fun RowScope.CardHeaderText(text: String, weight: Float) {
 private fun CardDataArea(
     rows: List<DocRow>,
     totalText: String,
+    plan: TablePlan,
     isEnglish: Boolean = false,
     editing: Boolean = false,
     onEditRow: (Int, (DocRow) -> DocRow) -> Unit,
@@ -716,36 +862,43 @@ private fun CardDataArea(
                 index = i + 1,
                 row = row,
                 isAlt = (i + 1) % 2 == 1, // 第1、3…行浅绿，与原斑马纹一致
+                colWidths = plan.widths,
+                cellFont = plan.cellFont,
                 editing = editing,
                 onEdit = { transform -> onEditRow(i, transform) }
             )
         }
 
-        // 合计行：标签合并前 5 列（不画内部竖线），金额落在金额列 —— 和 Excel 合并单元格一致
+        // 合计行：标签合并前 5 列（不画内部竖线），金额锁定在金额列宽度内 —— 和 Excel 合并单元格一致
+        val labelWidth = plan.widths.take(5).reduce { a, b -> a + b }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(36.dp)
                 .background(CardTotalBg)
-                .drawBehind { drawTableColumns(CellDivider, afterCols = setOf(4)) },
+                .drawBehind { drawTableColumns(CellDivider, plan.widths, afterCols = setOf(4)) },
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .weight(CardColWeights.subList(0, 5).sum())
+                    .width(labelWidth)
                     .padding(end = 10.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
                 Text(if (isEnglish) "Total: " else "合计金额：", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CardTextDark)
             }
+            // 关键：金额必须锁死在金额列宽度内，否则会按内容撑宽、把栅格顶歪
             CellContent(
                 editing = editing,
                 value = totalText,
                 onValueChange = onEditTotal,
                 color = CardGreen,
-                fontSize = 13.sp,
+                fontSize = plan.totalFont,
                 fontWeight = FontWeight.Bold,
-                singleLine = true
+                singleLine = true,
+                modifier = Modifier
+                    .width(plan.widths[5])
+                    .padding(horizontal = 6.dp)
             )
         }
     }
@@ -756,6 +909,8 @@ private fun CardDataRow(
     index: Int,
     row: DocRow,
     isAlt: Boolean,
+    colWidths: List<Dp>,
+    cellFont: TextUnit,
     editing: Boolean = false,
     onEdit: (transform: (DocRow) -> DocRow) -> Unit
 ) {
@@ -765,7 +920,7 @@ private fun CardDataRow(
             .background(if (isAlt) CardRowAlt else Color.White)
             // 行高由最高的单元格撑开（长材质名换行也不会断线），竖线/底线都画在整行上
             .drawBehind {
-                drawTableColumns(CellDivider)
+                drawTableColumns(CellDivider, colWidths)
                 val stroke = 0.5.dp.toPx()
                 drawLine(
                     color = Color(0xFFE0E0E0),
@@ -777,36 +932,36 @@ private fun CardDataRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 序号是行号，不是数据，不可编辑
-        CardDataCell(CardColWeights[0]) {
-            Text("$index", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CardTextDark, maxLines = 1)
+        CardDataCell(colWidths[0]) {
+            Text("$index", fontSize = cellFont, fontWeight = FontWeight.Bold, color = CardTextDark, maxLines = 1)
         }
-        CardDataCell(CardColWeights[1]) {
-            CellContent(editing, row.name, { v -> onEdit { it.copy(name = v) } }, maxLines = 2)
+        CardDataCell(colWidths[1]) {
+            CellContent(editing, row.name, { v -> onEdit { it.copy(name = v) } }, fontSize = cellFont, maxLines = 2)
         }
-        CardDataCell(CardColWeights[2]) {
-            CellContent(editing, row.spec, { v -> onEdit { it.copy(spec = v) } }, maxLines = 2)
+        CardDataCell(colWidths[2]) {
+            CellContent(editing, row.spec, { v -> onEdit { it.copy(spec = v) } }, fontSize = cellFont, maxLines = 2)
         }
-        CardDataCell(CardColWeights[3]) {
-            CellContent(editing, row.quantity, { v -> onEdit { it.copy(quantity = v) } }, singleLine = true)
+        CardDataCell(colWidths[3]) {
+            CellContent(editing, row.quantity, { v -> onEdit { it.copy(quantity = v) } }, fontSize = cellFont, singleLine = true)
         }
-        CardDataCell(CardColWeights[4]) {
-            CellContent(editing, row.unitPrice, { v -> onEdit { it.copy(unitPrice = v) } }, singleLine = true)
+        CardDataCell(colWidths[4]) {
+            CellContent(editing, row.unitPrice, { v -> onEdit { it.copy(unitPrice = v) } }, fontSize = cellFont, singleLine = true)
         }
-        CardDataCell(CardColWeights[5]) {
-            CellContent(editing, row.amount, { v -> onEdit { it.copy(amount = v) } }, color = CardGreen, singleLine = true)
+        CardDataCell(colWidths[5]) {
+            CellContent(editing, row.amount, { v -> onEdit { it.copy(amount = v) } }, color = CardGreen, fontSize = cellFont, singleLine = true)
         }
     }
 }
 
-/** 数据行单元格：按权重占列，内边距撑出统一行高，多行文字自动把整行撑高。 */
+/** 数据行单元格：按实测列宽占位，内边距撑出统一行高，多行文字自动把整行撑高。 */
 @Composable
 private fun RowScope.CardDataCell(
-    weight: Float,
+    width: Dp,
     content: @Composable () -> Unit
 ) {
     Box(
         modifier = Modifier
-            .weight(weight)
+            .width(width)
             .padding(horizontal = 6.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -828,6 +983,7 @@ private fun CellContent(
     fontWeight: FontWeight = FontWeight.Normal,
     maxLines: Int = 2,
     singleLine: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     if (editing) {
         BasicTextField(
@@ -844,7 +1000,7 @@ private fun CellContent(
             ),
             cursorBrush = SolidColor(CardGreen),
             maxLines = if (singleLine) 1 else maxLines,
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(3.dp))
                 .background(Color(0xFFFFF8E1))
@@ -857,7 +1013,9 @@ private fun CellContent(
             color = color,
             fontWeight = fontWeight,
             textAlign = TextAlign.Center,
-            maxLines = if (singleLine) 1 else maxLines
+            maxLines = if (singleLine) 1 else maxLines,
+            overflow = TextOverflow.Ellipsis,
+            modifier = modifier
         )
     }
 }

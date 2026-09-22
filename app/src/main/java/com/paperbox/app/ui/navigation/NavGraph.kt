@@ -138,7 +138,6 @@ fun AppNavGraph() {
                     QuoteResultPage(
                         state = state,
                         onBack = { navController.popBackStack() },
-                        onClearTraceCode = { quoteViewModel.clearTraceCode() },
                         onClearError = { quoteViewModel.clearError() },
                         onToggleLanguage = { quoteViewModel.toggleLanguage() }
                     )

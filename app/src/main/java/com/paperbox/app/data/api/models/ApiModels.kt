@@ -160,6 +160,22 @@ data class QuoteRecordResponse(
     @Json(name = "created_at") val createdAt: String
 )
 
+/**
+ * 本机报价历史条目 —— 只存展示所需字段，DataStore 持久化（JSON 数组），上限 20 条。
+ * createdAt 为本地保存时刻（epoch millis）。
+ */
+@JsonClass(generateAdapter = true)
+data class QuoteHistoryEntry(
+    val length: Double,
+    val width: Double,
+    val height: Double,
+    val quantity: Int,
+    /** 折合单价（元/个） */
+    val unitPrice: Double,
+    val finalAmount: Double,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 @JsonClass(generateAdapter = true)
 data class QuoteRecordDetail(
     val uuid: String = "",

@@ -1,19 +1,30 @@
 package com.paperbox.app.ui.quote
 
+import android.content.Context
 import androidx.compose.runtime.Immutable
+import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paperbox.app.data.api.ApiService
+import com.paperbox.app.data.api.PrefsKeys
+import com.paperbox.app.data.api.dataStore
+import com.paperbox.app.data.api.models.QuoteHistoryEntry
 import com.paperbox.app.data.api.models.QuoteRecordDetail
 import com.paperbox.app.data.api.models.QuoteRecordRequest
 import com.paperbox.app.data.api.models.SpotProduct
 import com.paperbox.app.domain.model.*
 import com.paperbox.app.domain.usecase.CalculateQuoteUseCase
 import com.paperbox.app.domain.usecase.MatchSpotProductsUseCase
+import com.squareup.moshi.JsonAdapter
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
@@ -53,7 +64,9 @@ data class QuoteUiState(
     val isSearchActive: Boolean = false,
     val searchFieldText: String = "",
     val searchReady: Boolean = false,
-    val searchResults: List<QuoteRecordDetail> = emptyList()
+    val searchResults: List<QuoteRecordDetail> = emptyList(),
+    /** 本机报价历史（新→旧），DataStore 持久化 */
+    val history: List<QuoteHistoryEntry> = emptyList()
 ) {
     companion object {
         /** 匹配容差的默认值，同时是滑块的起始位置 */
@@ -68,14 +81,45 @@ data class QuoteUiState(
 class QuoteViewModel @Inject constructor(
     private val calculateQuote: CalculateQuoteUseCase,
     private val matchSpotProducts: MatchSpotProductsUseCase,
-    private val apiService: ApiService
+    private val apiService: ApiService,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(QuoteUiState())
     val uiState: StateFlow<QuoteUiState> = _uiState.asStateFlow()
 
+    private val historyAdapter: JsonAdapter<List<QuoteHistoryEntry>> = Moshi.Builder()
+        .addLast(KotlinJsonAdapterFactory())
+        .build()
+        .adapter(
+            Types.newParameterizedType(List::class.java, QuoteHistoryEntry::class.java)
+        )
+
     init {
         loadData()
+        loadHistory()
+    }
+
+    private fun loadHistory() {
+        viewModelScope.launch {
+            try {
+                val json = context.dataStore.data.first()[PrefsKeys.QUOTE_HISTORY] ?: return@launch
+                val list = historyAdapter.fromJson(json) ?: emptyList()
+                _uiState.value = _uiState.value.copy(history = list)
+            } catch (_: Exception) {
+                // 历史数据损坏不影响报价主流程
+            }
+        }
+    }
+
+    private fun persistHistory(list: List<QuoteHistoryEntry>) {
+        viewModelScope.launch {
+            try {
+                context.dataStore.edit { it[PrefsKeys.QUOTE_HISTORY] = historyAdapter.toJson(list) }
+            } catch (_: Exception) {
+                // 写失败只丢历史，不影响报价
+            }
+        }
     }
 
     private fun loadData() {
@@ -486,9 +530,21 @@ class QuoteViewModel @Inject constructor(
                 if (response.isSuccessful) {
                     val savedTraceCode = response.body()!!.traceCode
                     android.util.Log.d("QuoteVM", "保存成功 traceCode=$savedTraceCode")
+                    // 记入本机报价历史（新→旧，只留 20 条）
+                    val entry = QuoteHistoryEntry(
+                        length = state.form.length,
+                        width = state.form.width,
+                        height = state.form.height,
+                        quantity = state.form.orderQuantity,
+                        unitPrice = request.unitPrice ?: 0.0,
+                        finalAmount = request.finalAmount ?: 0.0
+                    )
+                    val newHistory = (listOf(entry) + _uiState.value.history).take(20)
+                    persistHistory(newHistory)
                     _uiState.value = _uiState.value.copy(
                         traceCode = savedTraceCode,
                         lastSavedForm = state.form,
+                        history = newHistory,
                         isLoading = false
                     )
                 } else {

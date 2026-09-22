@@ -37,6 +37,9 @@ object PrefsKeys {
     val SAVED_USERNAME = stringPreferencesKey("saved_username")
     val SAVED_PASSWORD = stringPreferencesKey("saved_password")
     val REMEMBER_PASSWORD = booleanPreferencesKey("remember_password")
+
+    /** 报价历史（JSON 数组，QuoteHistoryEntry，上限 20 条） */
+    val QUOTE_HISTORY = stringPreferencesKey("quote_history")
 }
 
 @Singleton
