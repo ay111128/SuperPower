@@ -68,7 +68,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.FontSize
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.drawToBitmap
@@ -824,7 +824,7 @@ private fun CellContent(
     value: String,
     onValueChange: (String) -> Unit,
     color: Color = CardTextDark,
-    fontSize: FontSize = 10.sp,
+    fontSize: TextUnit = 10.sp,
     fontWeight: FontWeight = FontWeight.Normal,
     maxLines: Int = 2,
     singleLine: Boolean = false,
