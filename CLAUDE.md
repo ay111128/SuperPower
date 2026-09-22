@@ -19,6 +19,15 @@
 - 推送到 `github` 远端触发自动构建
 - APK 下载：`https://github.com/ay111128/SuperPower/releases/latest`
 
+## 多端与服务器架构
+- 本机（开发机 `124.220.38.44`）上并列两个端的源码：
+  - `/home/ubuntu/paperbox-Android/` — 安卓端（本项目）
+  - `/home/ubuntu/paperbox-Web/paperbox/` — Web 端（开发路径，**不是后端**；其 `scripts/deploy.sh` 是 Web 端部署脚本，仓库内含后端源码 `server/`）
+- 后端**只有一套**，两端共享，部署在阿里云：
+  - 部署服务器：`root@101.133.169.230`，SSH 密钥 `/home/ubuntu/aliyun_sshkey/aliyun_SSHkey.pem`
+  - 线上运行目录：`/home/admin/www/paperbox`（pm2 进程 `paperbox-api`，端口 3101）
+  - 运行时数据：`/home/admin/www/upload/paperbox-data/`（软链进 `server/uploads`、`server/data`），**不要动**
+
 ## 服务器地址
 - API 地址：`https://101.133.169.230`（IP 直连，自签名证书）
 - 域名：`https://www.ay111128.com`（TLS 指纹拦截，APP 不能用）
