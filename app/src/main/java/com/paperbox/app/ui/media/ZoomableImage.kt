@@ -3,6 +3,7 @@ package com.paperbox.app.ui.media
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
@@ -21,8 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.awaitEachGesture
-import androidx.compose.ui.input.pointer.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Job
@@ -91,60 +90,66 @@ fun ZoomableImage(
 
     // 常驻捏合/平移手势检测
     val gestureModifier = Modifier.pointerInput(Unit) {
-        awaitEachGesture {
-            awaitFirstDown(requireUnconsumed = false)
-            var claimed = false
-            var decided = false
-
+        // awaitPointerEventScope / awaitPointerEvent 是接口成员，无需 import
+        awaitPointerEventScope {
             while (true) {
-                val event = awaitPointerEvent()
-                if (event.changes.count { it.pressed } == 0) break
+                // 等第一根手指按下（down 事件由它消费）
+                awaitFirstDown(requireUnconsumed = false)
 
-                if (!decided) {
-                    when {
-                        // Pager（或其他人）已消费该手势 → 归它，我们整轮退出
-                        event.changes.any { it.isConsumed } -> {
-                            decided = true
-                            claimed = false
+                var claimed = false
+                var decided = false
+
+                // 手势进行中：直到所有手指抬起
+                while (true) {
+                    val event = awaitPointerEvent()
+                    if (event.changes.count { change -> change.pressed } == 0) break
+
+                    if (!decided) {
+                        when {
+                            // Pager（或其他人）已消费该手势 → 归它，我们整轮退出
+                            event.changes.any { change -> change.isConsumed } -> {
+                                decided = true
+                                claimed = false
+                            }
+                            // 第二根手指落下且无人消费 → 接管
+                            event.changes.count { change -> change.pressed } >= 2 -> {
+                                decided = true
+                                claimed = true
+                                zoomAnimJob?.cancel()
+                            }
                         }
-                        // 第二根手指落下且无人消费 → 接管
-                        event.changes.count { it.pressed } >= 2 -> {
-                            decided = true
-                            claimed = true
-                            zoomAnimJob?.cancel()
-                        }
+                        // 单指未消费：继续等，可能第二根手指马上落下
                     }
-                    // 单指未消费：继续等，可能第二根手指马上落下
+
+                    if (claimed) {
+                        val (newScale, newOffsetX, newOffsetY) = nextTransform(
+                            scale = scale,
+                            offsetX = offsetX,
+                            offsetY = offsetY,
+                            zoom = event.calculateZoom(),
+                            pan = event.calculatePan(),
+                            centroid = event.calculateCentroid(),
+                            center = Offset(size.width / 2f, size.height / 2f),
+                            snapThreshold = snapThreshold
+                        )
+                        scale = newScale
+                        offsetX = newOffsetX
+                        offsetY = newOffsetY
+                        // 同步通知（boolean 未翻转时不触发父级重组）
+                        currentOnZoomChanged?.invoke(scale > 1f)
+                        // 捏合期间消费全部事件 → Pager 永远收不到，不再打架
+                        event.changes.forEach { change -> change.consume() }
+                    }
                 }
 
-                if (claimed) {
-                    val (newScale, newOffsetX, newOffsetY) = nextTransform(
-                        scale = scale,
-                        offsetX = offsetX,
-                        offsetY = offsetY,
-                        zoom = event.calculateZoom(),
-                        pan = event.calculatePan(),
-                        centroid = event.calculateCentroid(),
-                        center = Offset(size.width / 2f, size.height / 2f),
-                        snapThreshold = snapThreshold
-                    )
-                    scale = newScale
-                    offsetX = newOffsetX
-                    offsetY = newOffsetY
-                    // 同步通知（boolean 未翻转时不触发父级重组）
-                    currentOnZoomChanged?.invoke(scale > 1f)
-                    // 捏合期间消费全部事件 → Pager 永远收不到，不再打架
-                    event.changes.forEach { it.consume() }
+                // 手指全抬：微缩带（1 ~ 阈值）吸附归位，恢复翻页
+                if (scale > 1f && scale < snapThreshold) {
+                    scale = 1f
+                    offsetX = 0f
+                    offsetY = 0f
                 }
+                currentOnZoomChanged?.invoke(scale > 1f)
             }
-
-            // 手指全抬：微缩带（1 ~ 阈值）吸附归位，恢复翻页
-            if (scale > 1f && scale < snapThreshold) {
-                scale = 1f
-                offsetX = 0f
-                offsetY = 0f
-            }
-            currentOnZoomChanged?.invoke(scale > 1f)
         }
     }
 
