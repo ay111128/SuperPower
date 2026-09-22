@@ -93,8 +93,8 @@ fun ZoomableImage(
         // awaitPointerEventScope / awaitPointerEvent 是接口成员，无需 import
         awaitPointerEventScope {
             while (true) {
-                // 等第一根手指按下（down 事件由它消费）
-                awaitFirstDown(requireUnconsumed = false)
+                // 等第一根手指按下（down 事件由它消费），记录按下点用于 slop 判断
+                val down = awaitFirstDown(requireUnconsumed = false)
 
                 var claimed = false
                 var decided = false
@@ -105,20 +105,30 @@ fun ZoomableImage(
                     if (event.changes.count { change -> change.pressed } == 0) break
 
                     if (!decided) {
+                        val pressedChange = event.changes.firstOrNull { change -> change.pressed }
                         when {
                             // Pager（或其他人）已消费该手势 → 归它，我们整轮退出
                             event.changes.any { change -> change.isConsumed } -> {
                                 decided = true
                                 claimed = false
                             }
-                            // 第二根手指落下且无人消费 → 接管
+                            // 第二根手指落下且无人消费 → 接管（捏合缩放）
                             event.changes.count { change -> change.pressed } >= 2 -> {
                                 decided = true
                                 claimed = true
                                 zoomAnimJob?.cancel()
                             }
+                            // 已放大 + 单指移过 touchSlop → 接管（平移看细节）。
+                            // 必须等过 slop：没过就接管会消费掉点击的微动，放大态点击切换会失灵
+                            scale > 1f && pressedChange != null &&
+                                (pressedChange.position - down.position).getDistance() >
+                                    viewConfiguration.touchSlop -> {
+                                decided = true
+                                claimed = true
+                                zoomAnimJob?.cancel()
+                            }
                         }
-                        // 单指未消费：继续等，可能第二根手指马上落下
+                        // 1x 单指未消费：继续等，可能第二根手指马上落下
                     }
 
                     if (claimed) {

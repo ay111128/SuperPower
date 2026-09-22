@@ -437,7 +437,7 @@ fun MediaViewerScreen(
 
     // ── 核心内容：根据模式渲染 ──
     @Composable
-    fun PagerContent(onTap: () -> Unit, onLongPress: () -> Unit) {
+    fun PagerContent(onTap: () -> Unit) {
         if (hasMultiple) {
             HorizontalPager(
                 state = pagerState,
@@ -451,7 +451,6 @@ fun MediaViewerScreen(
                     fileUrl = url,
                     okHttpClient = viewModel.okHttpClient,
                     onTap = onTap,
-                    onLongPress = onLongPress,
                     onZoomChanged = { zoomed -> isImageZoomed = zoomed }
                 )
             }
@@ -461,7 +460,6 @@ fun MediaViewerScreen(
                 fileUrl = fileUrl,
                 okHttpClient = viewModel.okHttpClient,
                 onTap = onTap,
-                onLongPress = onLongPress,
                 onZoomChanged = { zoomed -> isImageZoomed = zoomed }
             )
         }
@@ -515,8 +513,7 @@ fun MediaViewerScreen(
                         .background(Color.Black)
                 ) {
                     PagerContent(
-                        onTap = { viewState = VIEW_FULLSCREEN },
-                        onLongPress = { showMenu = true }
+                        onTap = { viewState = VIEW_FULLSCREEN }
                     )
                 }
             }
@@ -528,8 +525,7 @@ fun MediaViewerScreen(
                     .background(Color.Black)
             ) {
                 PagerContent(
-                    onTap = { viewState = VIEW_PURE },
-                    onLongPress = { showMenu = true }
+                    onTap = { viewState = VIEW_PURE }
                 )
                 // 返回键浮层
                 Box(
@@ -579,8 +575,7 @@ fun MediaViewerScreen(
                     .background(Color.Black)
             ) {
                 PagerContent(
-                    onTap = { viewState = VIEW_FULLSCREEN },
-                    onLongPress = { showMenu = true }
+                    onTap = { viewState = VIEW_FULLSCREEN }
                 )
             }
         }
@@ -595,7 +590,7 @@ fun MediaViewerScreen(
 }
 
 /**
- * 单页内容：图片或视频
+ * 单页内容：图片或视频（长按菜单已移除，操作入口统一走 ⋮）
  */
 @Composable
 private fun PagerPage(
@@ -603,7 +598,6 @@ private fun PagerPage(
     fileUrl: String,
     okHttpClient: okhttp3.OkHttpClient,
     onTap: () -> Unit,
-    onLongPress: () -> Unit,
     onZoomChanged: (Boolean) -> Unit
 ) {
     when {
@@ -614,7 +608,6 @@ private fun PagerPage(
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 onTap = onTap,
-                onLongPress = onLongPress,
                 onZoomChanged = onZoomChanged
             )
         }
@@ -623,7 +616,6 @@ private fun PagerPage(
                 url = fileUrl,
                 okHttpClient = okHttpClient,
                 modifier = Modifier.fillMaxSize(),
-                onLongPress = onLongPress,
                 onTap = onTap
             )
         }
