@@ -69,6 +69,9 @@ fun QuoteScreen(
     // 一个纯粹的临时 UI 标志，塞进 state 会让整页跟着重组
     var layoutMenuExpanded by remember { mutableStateOf(false) }
 
+    // 3D 尺寸预览弹层 —— 低频功能，只在点「3D」时打开
+    var showBoxPreview by remember { mutableStateOf(false) }
+
     LaunchedEffect(scrollState.isScrollInProgress) {
         // 滚动时菜单会脱锚，直接收起来
         if (scrollState.isScrollInProgress) layoutMenuExpanded = false
@@ -312,7 +315,17 @@ fun QuoteScreen(
                     state = state,
                     onLength = viewModel::updateLength,
                     onWidth = viewModel::updateWidth,
-                    onHeight = viewModel::updateHeight
+                    onHeight = viewModel::updateHeight,
+                    onOpen3D = {
+                        if (state.form.length > 0 && state.form.width > 0 && state.form.height > 0) {
+                            focusManager.clearFocus()
+                            showBoxPreview = true
+                        } else {
+                            android.widget.Toast.makeText(
+                                context, "请先输入长宽高尺寸", android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
                 )
 
                 QuoteProductionSection(
@@ -438,6 +451,17 @@ fun QuoteScreen(
                         }
                     }
                 }
+            }
+
+            // ── 3D 尺寸预览弹层 ──
+            if (showBoxPreview) {
+                BoxPreviewSheet(
+                    state = state,
+                    onLength = viewModel::updateLength,
+                    onWidth = viewModel::updateWidth,
+                    onHeight = viewModel::updateHeight,
+                    onDismiss = { showBoxPreview = false }
+                )
             }
         }
     }

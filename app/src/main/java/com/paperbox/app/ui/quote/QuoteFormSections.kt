@@ -55,7 +55,8 @@ internal fun QuoteDimensionSection(
     state: QuoteUiState,
     onLength: (String) -> Unit,
     onWidth: (String) -> Unit,
-    onHeight: (String) -> Unit
+    onHeight: (String) -> Unit,
+    onOpen3D: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -66,6 +67,32 @@ internal fun QuoteDimensionSection(
         QuoteField("长", state.lengthText, onLength, Modifier.weight(1f))
         QuoteField("宽", state.widthText, onWidth, Modifier.weight(1f))
         QuoteField("高", state.heightText, onHeight, Modifier.weight(1f))
+        Box3DButton(onOpen3D)
+    }
+}
+
+/**
+ * 尺寸行末尾的「3D」入口按钮：低频功能，只在需要核对比例时点开预览弹层。
+ * 尺寸无效（空/0）时点按弹 Toast 提示，不打开弹层。
+ */
+@Composable
+private fun Box3DButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .height(36.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White)
+            .border(1.dp, QuoteFieldStroke, RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            "3D",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = QuoteGreen
+        )
     }
 }
 
