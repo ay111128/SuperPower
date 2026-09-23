@@ -1155,10 +1155,14 @@ private fun CardInfoRow(label: String, value: String) {
 
 /**
  * 将 Bitmap 保存到系统相册（Android 10+ 用 MediaStore，不需要存储权限）。
+ * internal：3D 预览弹层的画布截图也走这里。
  */
-private suspend fun saveBitmapToGallery(context: android.content.Context, bitmap: Bitmap) {
+internal suspend fun saveBitmapToGallery(
+    context: android.content.Context,
+    bitmap: Bitmap,
+    filename: String = "报价单_${System.currentTimeMillis()}.jpg"
+) {
     withContext(Dispatchers.IO) {
-        val filename = "报价单_${System.currentTimeMillis()}.jpg"
         val contentValues = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, filename)
             put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")

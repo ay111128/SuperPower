@@ -1,43 +1,64 @@
 package com.paperbox.app.ui.quote
 
+import android.graphics.Bitmap
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.drawToBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -45,7 +66,7 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 // ══════════════════════════════════════════════════════════════
-//  飞机盒 3D 预览 —— 纯 Canvas 线框/平面投影，零 3D 依赖
+//  飞机盒 3D 预览 —— 纯 Canvas 平面投影，零 3D 依赖
 //  模型坐标系：x = 长，y = 高（上为正），z = 宽（+z 为前脸）
 // ══════════════════════════════════════════════════════════════
 
@@ -61,22 +82,166 @@ private data class Vec3(val x: Float, val y: Float, val z: Float) {
     }
 }
 
-/** 面的语义下标（只枚举带缝隙的面，其余仅用于渲染）。 */
-private const val FACE_TOP = 0
-private const val FACE_FRONT = 1
-private const val FACE_RIGHT = 2
-private const val FACE_LEFT = 3
+/** 标注方向：按边的方向归类（x 向棱 = 长，z 向 = 宽，y 向 = 高）。 */
+private enum class Dim { LEN, WID, HT }
 
 private fun Color.shaded(k: Float) = Color(red * k, green * k, blue * k)
 
 /** 一次可见面收集的中间结果（不能在 Canvas lambda 里声明类）。 */
 private data class VisFace(val idx: Int, val depth: Float)
 
+/** 6 个面的顶点绕序（外看逆时针）：0 底 1 顶 2 前 3 后 4 右 5 左。 */
+private val FACE_CORNERS = listOf(
+    intArrayOf(0, 1, 5, 4),   // 底 -y
+    intArrayOf(3, 7, 6, 2),   // 顶 +y
+    intArrayOf(4, 5, 6, 7),   // 前 +z
+    intArrayOf(1, 0, 3, 2),   // 后 -z
+    intArrayOf(5, 1, 2, 6),   // 右 +x
+    intArrayOf(0, 4, 7, 3)    // 左 -x
+)
+
+/** 每条棱（无向，角标对）相邻的面 —— 用于判断棱是否可见、响应点选。 */
+private val EDGE_FACES: Map<Pair<Int, Int>, List<Int>> = run {
+    val m = LinkedHashMap<Pair<Int, Int>, MutableList<Int>>()
+    FACE_CORNERS.forEachIndexed { f, idx ->
+        for (i in idx.indices) {
+            val a = idx[i]
+            val b = idx[(i + 1) % idx.size]
+            val key = if (a < b) a to b else b to a
+            m.getOrPut(key) { mutableListOf() }.add(f)
+        }
+    }
+    m
+}
+private val ALL_EDGES: List<Pair<Int, Int>> = EDGE_FACES.keys.toList()
+
+/** 点到线段距离（点选边线用）。 */
+private fun distToSegment(p: Offset, a: Offset, b: Offset): Float {
+    val ab = b - a
+    val len2 = ab.x * ab.x + ab.y * ab.y
+    if (len2 < 1e-3f) return (p - a).getDistance()
+    val ap = p - a
+    val t = ((ap.x * ab.x + ap.y * ab.y) / len2).coerceIn(0f, 1f)
+    return (p - (a + ab * t)).getDistance()
+}
+
+/**
+ * 一次投影快照：旋转 + 弱透视 + 屏幕映射。
+ * 绘制和点选手势共用同一份，保证「点到的」和「画出来的」是同一条边。
+ */
+private class BoxProj(
+    l: Float, w: Float, h: Float,
+    yawDeg: Float, pitchDeg: Float, zoomLevel: Float,
+    val viewW: Float, val viewH: Float,
+    density: Density
+) {
+    val hx = l / 2f
+    val hy = h / 2f
+    val hz = w / 2f
+    val corners = arrayOf(
+        Vec3(-hx, -hy, -hz), Vec3(hx, -hy, -hz), Vec3(hx, hy, -hz), Vec3(-hx, hy, -hz),
+        Vec3(-hx, -hy, hz), Vec3(hx, -hy, hz), Vec3(hx, hy, hz), Vec3(-hx, hy, hz)
+    )
+    val cx = viewW / 2f
+    val cy = viewH / 2f
+    val valid: Boolean
+    val scale: Float
+
+    private val camDist = 3f * max(l, max(w, h)) // 相机距离（cm），透视温和
+    private val cosY: Float
+    private val sinY: Float
+    private val cosP: Float
+    private val sinP: Float
+
+    init {
+        val radY = Math.toRadians(yawDeg.toDouble())
+        val radP = Math.toRadians(pitchDeg.toDouble())
+        cosY = cos(radY).toFloat()
+        sinY = sin(radY).toFloat()
+        cosP = cos(radP).toFloat()
+        sinP = sin(radP).toFloat()
+
+        // 对角线在任何旋转角下都是投影上界 → 固定基准缩放，旋转时大小稳定不“呼吸”
+        val diag = sqrt(l * l + w * w + h * h)
+        with(density) {
+            val padX = 56.dp.toPx()
+            val padY = 52.dp.toPx()
+            val avail = min(viewW - padX * 2f, viewH - padY * 2f)
+            valid = diag > 0f && avail > 0f
+            // 0.9 给弱透视的近面放大留余量
+            scale = if (valid) (avail / diag) * 0.9f * zoomLevel else 0f
+        }
+    }
+
+    /** 绕 Y 偏航再绕 X 俯仰（未透视）。 */
+    fun rot(p: Vec3): Vec3 {
+        val x1 = p.x * cosY + p.z * sinY
+        val z1 = -p.x * sinY + p.z * cosY
+        val y2 = p.y * cosP - z1 * sinP
+        val z2 = p.y * sinP + z1 * cosP
+        return Vec3(x1, y2, z2)
+    }
+
+    /** 屏幕坐标（弱透视 + y 翻转）。 */
+    fun screen(p: Vec3): Offset {
+        val r = rot(p)
+        val persp = camDist / (camDist - r.z) // |r.z| ≤ diag/2 < camDist，安全
+        return Offset(cx + r.x * persp * scale, cy - r.y * persp * scale)
+    }
+
+    fun depth(p: Vec3): Float = rot(p).z
+
+    fun visibleFaceSet(): Set<Int> {
+        val out = mutableSetOf<Int>()
+        FACE_CORNERS.forEachIndexed { f, idx ->
+            val a = rot(corners[idx[0]])
+            val b = rot(corners[idx[1]])
+            val c = rot(corners[idx[2]])
+            if ((b - a).cross(c - a).normalized().z > 0.01f) out.add(f)
+        }
+        return out
+    }
+
+    /** 棱的方向归类（端点只有一个坐标不同 → 该坐标轴就是边方向）。 */
+    fun classifyEdge(key: Pair<Int, Int>): Dim {
+        val p = corners[key.first]
+        val q = corners[key.second]
+        return when {
+            p.x != q.x -> Dim.LEN
+            p.z != q.z -> Dim.WID
+            else -> Dim.HT
+        }
+    }
+
+    /** 自动模式：从候选棱对里挑朝向相机（视空间 z 更大）的那条。 */
+    fun nearerIdx(cands: List<Pair<Int, Int>>): Pair<Int, Int> =
+        cands.maxBy { (depth(corners[it.first]) + depth(corners[it.second])) / 2f }
+}
+
+/**
+ * 裸按钮：静止无背景无描边，只显示符号，沉浸式嵌在页面里；
+ * 按压反馈用 Compose 默认的水波纹（标准 clickable，不加自定义背景）。
+ */
+@Composable
+private fun BareSymbolButton(
+    onClick: () -> Unit,
+    content: @Composable BoxScope.() -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+        content = content
+    )
+}
+
 /**
  * 飞机盒尺寸预览底部弹层。
  *
  * 盒子尺寸实时绑定 QuoteUiState（弹层内可直接改长宽高，模型即时跟随）；
- * 单指拖动旋转，双指捏合缩放。
+ * 单指拖动旋转，双指捏合缩放；点某条棱把标注钉到那条棱上。
+ * 标题右侧：中/EN 切换 + 下载按钮（只截画布区域存相册）。画布通栏贴屏幕边缘。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,6 +256,48 @@ internal fun BoxPreviewSheet(
     val materialLabel = chip?.label ?: state.form.materialKey.label
     val materialColor = chip?.dot ?: Color(0xFFC4956A)
 
+    var isEnglish by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val view = LocalView.current
+    val scope = rememberCoroutineScope()
+    val canvasBounds = remember { mutableStateOf<Rect?>(null) }
+
+    /** 只截画布（白色模型区域）→ 存相册。 */
+    fun captureCanvas() {
+        val bounds = canvasBounds.value ?: return
+        scope.launch {
+            try {
+                val fullBitmap = withContext(Dispatchers.Main) {
+                    view.drawToBitmap(Bitmap.Config.ARGB_8888)
+                }
+                val left = bounds.left.toInt().coerceAtLeast(0)
+                val top = bounds.top.toInt().coerceAtLeast(0)
+                val right = bounds.right.toInt().coerceAtMost(fullBitmap.width)
+                val bottom = bounds.bottom.toInt().coerceAtMost(fullBitmap.height)
+                val w = (right - left).coerceAtLeast(1)
+                val h = (bottom - top).coerceAtLeast(1)
+                val cropped = Bitmap.createBitmap(fullBitmap, left, top, w, h)
+
+                saveBitmapToGallery(context, cropped, "飞机盒尺寸_${System.currentTimeMillis()}.jpg")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        if (isEnglish) "Saved to gallery" else "已保存到相册",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        if (isEnglish) "Capture failed: ${e.message}" else "截图失败：${e.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
@@ -98,33 +305,66 @@ internal fun BoxPreviewSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, bottom = 28.dp),
+                .padding(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                "飞机盒尺寸预览",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = QuoteTitle,
+            // ── 标题行：标题居中，右手边 中/EN + 下载 ──
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 2.dp),
-                textAlign = TextAlign.Center
-            )
+                    .padding(horizontal = 16.dp)
+                    .height(36.dp)
+            ) {
+                Text(
+                    if (isEnglish) "Box Size Preview" else "飞机盒尺寸预览",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = QuoteTitle,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.Center)
+                )
+                Row(
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 中/EN：显示当前可切换到的语言（和报价结果页顶栏同约定）
+                    BareSymbolButton(onClick = { isEnglish = !isEnglish }) {
+                        Text(
+                            if (isEnglish) "中" else "EN",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = QuoteGreen
+                        )
+                    }
+                    // 下载：截取画布区域存相册
+                    BareSymbolButton(onClick = { captureCanvas() }) {
+                        Icon(
+                            Icons.Default.FileDownload,
+                            contentDescription = if (isEnglish) "Download screenshot" else "下载截图",
+                            tint = QuoteGreen,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
 
+            // ── 画布：通栏贴屏幕边缘，不给内边距，视野全留给模型 ──
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(340.dp)
-                    .clip(RoundedCornerShape(12.dp))
                     .background(QuoteRowBg)
-                    .border(1.dp, QuoteCardStroke, RoundedCornerShape(12.dp))
+                    .onGloballyPositioned { canvasBounds.value = it.boundsInWindow() }
             ) {
                 BoxPreviewCanvas(
                     lengthCm = state.form.length,
                     widthCm = state.form.width,
                     heightCm = state.form.height,
-                    baseColor = materialColor
+                    baseColor = materialColor,
+                    isEnglish = isEnglish
                 )
             }
 
@@ -133,12 +373,15 @@ internal fun BoxPreviewSheet(
                     "${trimNumber(state.form.height)} cm ｜ $materialLabel",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                color = QuoteTitle
+                color = QuoteTitle,
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
 
             // 弹层内可直接改尺寸，模型实时跟随
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 QuoteField("长", state.lengthText, onLength, Modifier.weight(1f))
@@ -147,10 +390,13 @@ internal fun BoxPreviewSheet(
             }
 
             Text(
-                "单指拖动旋转 · 双指缩放 · 单位 cm",
+                if (isEnglish) "Drag to rotate · Pinch to zoom · Tap an edge to set the label"
+                else "拖动旋转 · 双指缩放 · 点边线指定标注（点空白恢复自动）",
                 fontSize = 11.sp,
                 color = QuoteMuted,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
                 textAlign = TextAlign.Center
             )
         }
@@ -159,25 +405,70 @@ internal fun BoxPreviewSheet(
 
 /**
  * 盒子投影画布：
- * 1. 旋转（yaw/pitch 轨道）→ 2. 弱透视 → 3. 背面剔除 + 按深度排序填色 →
- * 4. 结构缝隙（盖缝/舌口/侧折线，只画在朝向相机的面上）→
- * 5. 屏幕空间画三条尺寸线（始终选朝向相机的那条棱，标签是不随旋转的胶囊）。
+ * 1. 旋转（yaw/pitch 轨道）→ 2. 弱透视 → 3. 背面剔除 + 按深度远→近填色 + 面轮廓描边 →
+ * 4. 尺寸标注：默认自动选朝向相机的棱；点选后钉在指定棱上（无额外高亮线，跳位即反馈）。
+ * 面上不画任何装饰线（盖沿/舌口/铰链都已移除）——干净的色块盒子 + 标注。
  */
 @Composable
 private fun BoxPreviewCanvas(
     lengthCm: Double,
     widthCm: Double,
     heightCm: Double,
-    baseColor: Color
+    baseColor: Color,
+    isEnglish: Boolean = false
 ) {
     var yawDeg by remember { mutableFloatStateOf(-38f) }
     var pitchDeg by remember { mutableFloatStateOf(26f) }
     var zoomLevel by remember { mutableFloatStateOf(1f) }
+    // 每个方向各钉一条棱；空 = 该方向回自动
+    var pins by remember { mutableStateOf(emptyMap<Dim, Pair<Int, Int>>()) }
+    var canvasSize by remember { mutableStateOf(Size.Zero) }
+    val density = LocalDensity.current
     val measurer = rememberTextMeasurer()
 
     Canvas(
         modifier = Modifier
             .fillMaxSize()
+            .onSizeChanged { canvasSize = Size(it.width.toFloat(), it.height.toFloat()) }
+            // 点选：离点击最近的可见棱 → 钉住/取消；点空白恢复自动
+            .pointerInput(lengthCm, widthCm, heightCm) {
+                detectTapGestures { tap ->
+                    if (canvasSize.width <= 0f) return@detectTapGestures
+                    val proj = BoxProj(
+                        lengthCm.toFloat(), widthCm.toFloat(), heightCm.toFloat(),
+                        yawDeg, pitchDeg, zoomLevel,
+                        canvasSize.width, canvasSize.height, density
+                    )
+                    if (!proj.valid) return@detectTapGestures
+
+                    val visFaces = proj.visibleFaceSet()
+                    val threshold = with(density) { 30.dp.toPx() }
+                    var bestKey: Pair<Int, Int>? = null
+                    var bestDist = Float.MAX_VALUE
+                    for (key in ALL_EDGES) {
+                        // 只考虑当前视角下可见的棱（至少一个相邻面朝向相机）
+                        if (EDGE_FACES[key]!!.none { it in visFaces }) continue
+                        val d = distToSegment(
+                            tap,
+                            proj.screen(proj.corners[key.first]),
+                            proj.screen(proj.corners[key.second])
+                        )
+                        if (d < bestDist) {
+                            bestDist = d
+                            bestKey = key
+                        }
+                    }
+
+                    if (bestKey == null || bestDist > threshold) {
+                        pins = emptyMap() // 点空白：全部恢复自动
+                        return@detectTapGestures
+                    }
+                    val dim = proj.classifyEdge(bestKey)
+                    // 再点同一条 = 解除钉住；点别的 = 换钉
+                    pins = if (pins[dim] == bestKey) pins - dim else pins + (dim to bestKey)
+                }
+            }
+            // 拖动/捏合在后：点按（无位移）不会被它消费，拖动时点按手势自行取消
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
                     yawDeg += pan.x * 0.45f
@@ -187,70 +478,22 @@ private fun BoxPreviewCanvas(
             }
     ) {
         if (lengthCm <= 0 || widthCm <= 0 || heightCm <= 0) return@Canvas
-
-        val l = lengthCm.toFloat()
-        val w = widthCm.toFloat()
-        val h = heightCm.toFloat()
-        val hx = l / 2f
-        val hy = h / 2f
-        val hz = w / 2f
-
-        val cx = size.width / 2f
-        val cy = size.height / 2f
-
-        // 对角线在任何旋转角下都是投影上界 → 固定基准缩放，旋转时大小稳定不“呼吸”
-        val diag = sqrt(l * l + w * w + h * h)
-        val padX = 56.dp.toPx()
-        val padY = 52.dp.toPx()
-        val avail = min(size.width - padX * 2f, size.height - padY * 2f)
-        if (avail <= 0f) return@Canvas
-        // 0.9 给弱透视的近面放大留余量
-        val scale = (avail / diag) * 0.9f * zoomLevel
-
-        // 相机距离（cm）：取最大边 3 倍，透视温和不夸张
-        val camDist = 3f * max(l, max(w, h))
-
-        val radY = Math.toRadians(yawDeg.toDouble())
-        val radP = Math.toRadians(pitchDeg.toDouble())
-        val cosY = cos(radY).toFloat()
-        val sinY = sin(radY).toFloat()
-        val cosP = cos(radP).toFloat()
-        val sinP = sin(radP).toFloat()
-
-        /** 旋转（未透视）：先绕 Y 偏航，再绕 X 俯仰。 */
-        fun rot(p: Vec3): Vec3 {
-            val x1 = p.x * cosY + p.z * sinY
-            val z1 = -p.x * sinY + p.z * cosY
-            val y2 = p.y * cosP - z1 * sinP
-            val z2 = p.y * sinP + z1 * cosP
-            return Vec3(x1, y2, z2)
-        }
-
-        /** 旋转 + 弱透视 + 屏幕映射。返回 (屏幕x, 屏幕y, 视空间z)。 */
-        fun project(p: Vec3): Triple<Float, Float, Float> {
-            val r = rot(p)
-            val persp = camDist / (camDist - r.z) // |r.z| ≤ diag/2 < camDist，安全
-            return Triple(cx + r.x * persp * scale, cy - r.y * persp * scale, r.z)
-        }
-
-        // ── 8 顶点 ──
-        val corners = arrayOf(
-            Vec3(-hx, -hy, -hz), Vec3(hx, -hy, -hz), Vec3(hx, hy, -hz), Vec3(-hx, hy, -hz),
-            Vec3(-hx, -hy, hz), Vec3(hx, -hy, hz), Vec3(hx, hy, hz), Vec3(-hx, hy, hz)
+        val proj = BoxProj(
+            lengthCm.toFloat(), widthCm.toFloat(), heightCm.toFloat(),
+            yawDeg, pitchDeg, zoomLevel,
+            size.width, size.height, this
         )
-        val screenPts = arrayOfNulls<Triple<Float, Float, Float>>(8)
-        corners.forEachIndexed { i, c -> screenPts[i] = project(c) }
+        if (!proj.valid) return@Canvas
 
-        fun scr(p: Vec3): Offset {
-            val t = project(p)
-            return Offset(t.first, t.second)
-        }
+        val hx = proj.hx
+        val hy = proj.hy
+        val corners = proj.corners
+        fun scr(p: Vec3): Offset = proj.screen(p)
 
         // ── 阴影：底面中心下方一枚椭圆 ──
         run {
             val base = scr(Vec3(0f, -hy, 0f))
-            val halfW = hx * scale * 1.1f
-            val rx = max(halfW, 24.dp.toPx())
+            val rx = max(hx * proj.scale * 1.1f, 24.dp.toPx())
             val ry = rx * 0.3f
             drawOval(
                 color = Color(0x1F000000),
@@ -259,30 +502,17 @@ private fun BoxPreviewCanvas(
             )
         }
 
-        // ── 6 个面：外法线一致的绕序，背面剔除后按深度远→近填色 ──
-        // 下标：0 底 1 顶 2 前 3 后 4 右 5 左（绕序从外看逆时针）
-        val faceIdx = listOf(
-            intArrayOf(0, 1, 5, 4),   // 底 -y
-            intArrayOf(3, 7, 6, 2),   // 顶 +y
-            intArrayOf(4, 5, 6, 7),   // 前 +z
-            intArrayOf(1, 0, 3, 2),   // 后 -z
-            intArrayOf(5, 1, 2, 6),   // 右 +x
-            intArrayOf(0, 4, 7, 3)    // 左 -x
-        )
-        // 语义面 → faceIdx 下标（带缝隙的面）
-        val seamFaceVisible = BooleanArray(4)
-        // 光源（视空间）：左上前方
-        val light = Vec3(0.35f, 0.8f, 0.45f).normalized()
-
+        // ── 6 个面：背面剔除后按深度远→近填色 ──
+        val light = Vec3(0.35f, 0.8f, 0.45f).normalized() // 光源（视空间）：左上前方
         val visible = ArrayList<VisFace>(6)
         val rotCache = arrayOfNulls<Vec3>(8)
-        corners.forEachIndexed { i, c -> rotCache[i] = rot(c) }
+        corners.forEachIndexed { i, c -> rotCache[i] = proj.rot(c) }
 
-        faceIdx.forEachIndexed { fi, idx ->
+        FACE_CORNERS.forEachIndexed { fi, idx ->
             val a = rotCache[idx[0]]!!
             val b = rotCache[idx[1]]!!
-            val cc = rotCache[idx[2]]!!
-            val n = (b - a).cross(cc - a).normalized()
+            val c = rotCache[idx[2]]!!
+            val n = (b - a).cross(c - a).normalized()
             if (n.z <= 0.01f) return@forEachIndexed // 背面剔除
             val depth = (rotCache[idx[0]]!!.z + rotCache[idx[1]]!!.z +
                 rotCache[idx[2]]!!.z + rotCache[idx[3]]!!.z) / 4f
@@ -292,55 +522,27 @@ private fun BoxPreviewCanvas(
 
         val outlineColor = baseColor.shaded(0.45f)
         for (vf in visible) {
-            val idx = faceIdx[vf.idx]
+            val idx = FACE_CORNERS[vf.idx]
             val path = Path()
             idx.forEachIndexed { k, ci ->
-                val t = screenPts[ci]!!
-                if (k == 0) path.moveTo(t.first, t.second) else path.lineTo(t.first, t.second)
+                val t = scr(corners[ci])
+                if (k == 0) path.moveTo(t.x, t.y) else path.lineTo(t.x, t.y)
             }
             path.close()
 
             // 法线明暗：朝光亮，背光暗（0.5~1.0）
             val a = rotCache[idx[0]]!!
             val b = rotCache[idx[1]]!!
-            val cc = rotCache[idx[2]]!!
-            val n = (b - a).cross(cc - a).normalized()
+            val c = rotCache[idx[2]]!!
+            val n = (b - a).cross(c - a).normalized()
             val intensity = 0.5f + 0.5f * max(0f, n.dot(light))
             drawPath(path, color = baseColor.shaded(intensity))
             drawPath(path, color = outlineColor, style = Stroke(width = 1.4.dp.toPx()))
-
-            // 语义面可见性 → 决定缝隙是否绘制
-            when (vf.idx) {
-                1 -> seamFaceVisible[FACE_TOP] = true
-                2 -> seamFaceVisible[FACE_FRONT] = true
-                4 -> seamFaceVisible[FACE_RIGHT] = true
-                5 -> seamFaceVisible[FACE_LEFT] = true
-            }
-        }
-
-        // ── 结构缝隙：模型空间线段，只画在朝向相机的面上 ──
-        val seamColor = baseColor.shaded(0.58f)
-        val seamWidth = 1.1.dp.toPx()
-        val insetX = hx * 0.94f
-        val seams = listOf(
-            // 顶面：盖缝台阶（靠前两条平行线）
-            FACE_TOP to Pair(Vec3(-insetX, hy, hz * 0.88f), Vec3(insetX, hy, hz * 0.88f)),
-            FACE_TOP to Pair(Vec3(-insetX, hy, hz * 0.76f), Vec3(insetX, hy, hz * 0.76f)),
-            // 前脸：横缝 + 中段舌口（开口朝下的 ∩）
-            FACE_FRONT to Pair(Vec3(-insetX, hy * 0.15f, hz), Vec3(insetX, hy * 0.15f, hz)),
-            FACE_FRONT to Pair(Vec3(-hx * 0.25f, hy * 0.15f, hz), Vec3(-hx * 0.25f, hy * 0.75f, hz)),
-            FACE_FRONT to Pair(Vec3(hx * 0.25f, hy * 0.15f, hz), Vec3(hx * 0.25f, hy * 0.75f, hz)),
-            FACE_FRONT to Pair(Vec3(-hx * 0.25f, hy * 0.75f, hz), Vec3(hx * 0.25f, hy * 0.75f, hz)),
-            // 侧面：靠前 1/3 竖向折线
-            FACE_RIGHT to Pair(Vec3(hx, -hy * 0.94f, hz * 0.35f), Vec3(hx, hy * 0.94f, hz * 0.35f)),
-            FACE_LEFT to Pair(Vec3(-hx, -hy * 0.94f, hz * 0.35f), Vec3(-hx, hy * 0.94f, hz * 0.35f))
-        )
-        for ((face, seg) in seams) {
-            if (!seamFaceVisible[face]) continue
-            drawLine(seamColor, scr(seg.first), scr(seg.second), strokeWidth = seamWidth)
         }
 
         // ── 尺寸标注（屏幕空间，标签不随旋转）──
+        // 点选钉住的棱不画任何高亮线：标注跳过去就是反馈，
+        // 边上多一根线在截图里没有语义，看图的人反而会疑惑。
         val dimColor = Color(0xFF888888)
         val dimLineW = 1.dp.toPx()
         val dimOffset = 18.dp.toPx()
@@ -351,40 +553,38 @@ private fun BoxPreviewCanvas(
             color = QuoteTitle
         )
 
-        fun avgZ(a: Vec3, b: Vec3): Float = (rot(a).z + rot(b).z) / 2f
-
-        /** 从候选棱对里挑朝向相机（视空间 z 更大）的那条。 */
-        fun nearer(cands: List<Pair<Vec3, Vec3>>): Pair<Vec3, Vec3> =
-            cands.maxBy { avgZ(it.first, it.second) }
-
-        fun drawDim(edge: Pair<Vec3, Vec3>, label: String) {
-            val sa = scr(edge.first)
-            val sb = scr(edge.second)
+        fun drawDim(edge: Pair<Int, Int>, label: String) {
+            val sa = scr(corners[edge.first])
+            val sb = scr(corners[edge.second])
             val mid = Offset((sa.x + sb.x) / 2f, (sa.y + sb.y) / 2f)
 
-            // 外法方向：从画布中心指向棱中点（贴边时不为零向量兜底朝下）
-            var out = mid - Offset(cx, cy)
-            val dist = out.getDistance()
-            out = if (dist < 1f) Offset(0f, 1f) else out * (1f / dist)
+            // 偏移方向 = 棱的屏幕单位法线，取背离盒心的一侧。
+            // 旧实现用“盒心→棱中点”的辐射方向，它不垂直于棱且随视角摆动，
+            // 垂直分量会把刻度整条带上漂移 —— 拖动时刻度和棱角对不齐。
+            // 法线方向只随棱自身的屏幕倾角变化，垂直棱 → 严格水平偏移，刻度与两端点恒等高。
+            val e = sb - sa
+            val eLen = e.getDistance()
+            val degenerate = eLen <= 1e-2f
+            var nrm = if (degenerate) Offset(0f, 1f) else Offset(-e.y / eLen, e.x / eLen)
+            val away = mid - Offset(proj.cx, proj.cy)
+            if (nrm.x * away.x + nrm.y * away.y < 0f) nrm = -nrm
 
-            val q0 = sa + out * dimOffset
-            val q1 = sb + out * dimOffset
+            val q0 = sa + nrm * dimOffset
+            val q1 = sb + nrm * dimOffset
             drawLine(dimColor, q0, q1, strokeWidth = dimLineW)
 
-            // 两端垂直刻度
-            val dir = (q1 - q0)
-            val dirLen = dir.getDistance()
-            if (dirLen > 1f) {
-                val perp = Offset(-dir.y, dir.x) * (tickHalf / dirLen)
-                drawLine(dimColor, q0 - perp, q0 + perp, strokeWidth = dimLineW)
-                drawLine(dimColor, q1 - perp, q1 + perp, strokeWidth = dimLineW)
+            // 两端刻度：沿法线方向跨在标注线上（= 垂直于标注线）
+            if (!degenerate) {
+                val tick = nrm * tickHalf
+                drawLine(dimColor, q0 - tick, q0 + tick, strokeWidth = dimLineW)
+                drawLine(dimColor, q1 - tick, q1 + tick, strokeWidth = dimLineW)
             }
 
             // 标签胶囊：白底描边，压在线中间
             val layout = measurer.measure(label, labelStyle)
             val pillW = layout.size.width + 14.dp.toPx()
             val pillH = layout.size.height + 7.dp.toPx()
-            val pillC = mid + out * (dimOffset + 9.dp.toPx())
+            val pillC = mid + nrm * (dimOffset + 9.dp.toPx())
             val pillTopLeft = Offset(pillC.x - pillW / 2f, pillC.y - pillH / 2f)
             drawRoundRect(
                 color = Color.White.copy(alpha = 0.92f),
@@ -408,35 +608,22 @@ private fun BoxPreviewCanvas(
             )
         }
 
-        // 长：前底边 vs 后底边
-        drawDim(
-            nearer(
-                listOf(
-                    Pair(Vec3(-hx, -hy, hz), Vec3(hx, -hy, hz)),
-                    Pair(Vec3(-hx, -hy, -hz), Vec3(hx, -hy, -hz))
-                )
-            ),
-            "长 ${trimNumber(lengthCm)}"
-        )
+        // 长：钉住优先，否则自动选前/后底边里朝向相机的
+        val lenEdge = pins[Dim.LEN]
+            ?: proj.nearerIdx(listOf(4 to 5, 0 to 1))
         // 宽：右底边 vs 左底边
-        drawDim(
-            nearer(
-                listOf(
-                    Pair(Vec3(hx, -hy, hz), Vec3(hx, -hy, -hz)),
-                    Pair(Vec3(-hx, -hy, hz), Vec3(-hx, -hy, -hz))
-                )
-            ),
-            "宽 ${trimNumber(widthCm)}"
-        )
-        // 高：四条竖棱里取底面离相机最近的那条角
-        val nearestBottom = corners.filter { it.y == -hy }
-            .maxBy { rot(it).z }
-        drawDim(
-            Pair(
-                Vec3(nearestBottom.x, -hy, nearestBottom.z),
-                Vec3(nearestBottom.x, hy, nearestBottom.z)
-            ),
-            "高 ${trimNumber(heightCm)}"
-        )
+        val widEdge = pins[Dim.WID]
+            ?: proj.nearerIdx(listOf(5 to 1, 0 to 4))
+        // 高：钉住优先，否则底面离相机最近的角的竖棱（底角 c → 顶角 c+3）
+        val htEdge = pins[Dim.HT] ?: run {
+            val bottom = listOf(0, 1, 4, 5).maxBy { proj.depth(corners[it]) }
+            bottom to (bottom + 3)
+        }
+        val (lenWord, widWord, htWord) =
+            if (isEnglish) Triple("Length", "Width", "Height")
+            else Triple("长", "宽", "高")
+        drawDim(lenEdge, "$lenWord ${trimNumber(lengthCm)}cm")
+        drawDim(widEdge, "$widWord ${trimNumber(widthCm)}cm")
+        drawDim(htEdge, "$htWord ${trimNumber(heightCm)}cm")
     }
 }
