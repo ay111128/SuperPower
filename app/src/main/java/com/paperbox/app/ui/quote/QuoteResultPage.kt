@@ -80,6 +80,7 @@ import androidx.core.view.drawToBitmap
 import com.paperbox.app.R
 import com.paperbox.app.data.api.models.QuoteHistoryEntry
 import com.paperbox.app.domain.model.ChargeLine
+import com.paperbox.app.domain.model.LayoutKey
 import com.paperbox.app.domain.model.QuoteComputation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -522,6 +523,7 @@ private val CardGray = Color(0xFFE3E3E3)
 private val CardDescBg = Color(0xFFF5F5F5)
 private val CardRowAlt = Color(0xFFF8FDF8)
 private val CardTotalBg = Color(0xFFF0F7F0)
+private val CardSpecBg = Color(0xFFF8F8F8)
 private val CardTextGray = Color(0xFF999999)
 private val CardTextDesc = Color(0xFF666666)
 private val CardTextDark = Color(0xFF333333)
@@ -731,7 +733,16 @@ private fun QuoteDocumentSection(
             val plan = rememberTablePlan(maxWidth, rows, totalText, isEnglish)
             Column(Modifier.fillMaxWidth()) {
                 CardColumnBar(plan.widths, isEnglish)
-                CardDataArea(rows, totalText, plan, isEnglish, editing, onEditRow, onEditTotal)
+                CardDataArea(
+                    rows = rows,
+                    totalText = totalText,
+                    specHint = buildSpecHint(state, result, isEnglish),
+                    plan = plan,
+                    isEnglish = isEnglish,
+                    editing = editing,
+                    onEditRow = onEditRow,
+                    onEditTotal = onEditTotal
+                )
             }
         }
 
@@ -842,10 +853,37 @@ private fun RowScope.CardHeaderText(text: String, width: Dp) {
     )
 }
 
+/**
+ * 箱规提示行的文案：平铺展开尺寸 + 单重 + 总重。
+ *
+ * 尺寸用「平铺」口径——快递打包时飞机盒是拆开平铺叠放的，
+ * 不能用成型后的长×宽×高；单张展开尺寸直接取计算结果里的
+ * 1×1 刀模排版（result.layouts，源头是 CalculateQuoteUseCase.calculateLayouts，
+ * 与 Web 端一致），不在此处另抄公式。
+ * 单重 = 总重 / 数量（g/个），和 Web 端打印视图口径一致。
+ */
+private fun buildSpecHint(state: QuoteUiState, result: QuoteComputation, isEnglish: Boolean): String {
+    val open1x1 = result.layouts[LayoutKey.OPEN_1X1]
+    val dims = if (open1x1 != null) {
+        "${trimNumber(open1x1.width)}×${trimNumber(open1x1.height)} cm"
+    } else {
+        "${trimNumber(state.form.length)}×${trimNumber(state.form.width)}×${trimNumber(state.form.height)} cm"
+    }
+    val totalKg = num(result.totalWeight, 2)
+    if (state.form.orderQuantity <= 0) {
+        return if (isEnglish) "Flat size: $dims ｜ Total Wt: $totalKg kg"
+                else "平铺尺寸：$dims ｜ 总重 ${totalKg}kg"
+    }
+    val unitG = num(result.totalWeight / state.form.orderQuantity * 1000, 0)
+    return if (isEnglish) "Flat size: $dims ｜ Wt/pc: $unitG g ｜ Total Wt: $totalKg kg"
+            else "平铺尺寸：$dims ｜ 单重 ${unitG}g/个 ｜ 总重 ${totalKg}kg"
+}
+
 @Composable
 private fun CardDataArea(
     rows: List<DocRow>,
     totalText: String,
+    specHint: String,
     plan: TablePlan,
     isEnglish: Boolean = false,
     editing: Boolean = false,
@@ -899,6 +937,34 @@ private fun CardDataArea(
                 modifier = Modifier
                     .width(plan.widths[5])
                     .padding(horizontal = 6.dp)
+            )
+        }
+
+        // 箱规提示行：紧跟合计金额下方，横跨整表的浅色小字（提示信息，不进列栅格、不可编辑）
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(CardSpecBg)
+                .drawBehind {
+                    val stroke = 0.5.dp.toPx()
+                    drawLine(
+                        color = Color(0xFFE0E0E0),
+                        start = Offset(0f, stroke / 2),
+                        end = Offset(size.width, stroke / 2),
+                        strokeWidth = stroke
+                    )
+                }
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                specHint,
+                fontSize = 9.sp,
+                color = CardTextGray,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

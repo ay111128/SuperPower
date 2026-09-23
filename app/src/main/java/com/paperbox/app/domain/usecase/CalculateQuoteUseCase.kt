@@ -49,7 +49,8 @@ class CalculateQuoteUseCase @Inject constructor() {
             LayoutKey.OPEN_1X4 -> 4
             LayoutKey.OPEN_1X6 -> 6
         }
-        val areaM2 = (selectedLayout.width * selectedLayout.height) / 10000.0 / layoutCount
+        // 与 Web 端一致 round 到 4 位小数（web: round(w*h/10000/count, 4)）
+        val areaM2 = Math.round((selectedLayout.width * selectedLayout.height) / 10000.0 / layoutCount * 10000.0) / 10000.0
 
         // 3. 材质（现货模式下不使用，但克重计算需要）
         val material = materialConfigs.find { it.key == form.materialKey }
@@ -226,30 +227,33 @@ class CalculateQuoteUseCase @Inject constructor() {
         if (minFee > 0 && qty <= minQuantity) minFee else unitPrice * qty
 
     private fun calculateLayouts(l: Double, w: Double, h: Double): Map<LayoutKey, LayoutResult> {
-        // 移植自 Web 端 calculateLayouts 函数
-        // 各排版方案的板材尺寸计算公式
-        val tabExtra = 2.0 // 折叠余量
+        // 逐字移植自 Web 端 calculateLayouts（src/utils/quote.ts）—— 报价口径必须两端一致。
+        // 单盒刀模（roll-end tuck-top）展开：
+        //   长向 = 底L + 两端双层卷入端墙 = L + 4H；宽向 = 前墙H + 底W + 后墙H + 顶盖W + 插舌H = 2W + 3H
+        // 拼版共享切边：横向拼接省 H（所以 1×2 宽 = 2L + 7H + 1），插舌按 H-0.5 计。
+        // 尺寸与 Web 一致 round 到 2 位小数。
+        fun r2(v: Double): Double = Math.round(v * 100.0) / 100.0
 
         return mapOf(
             LayoutKey.OPEN_1X1 to LayoutResult(
                 "1×1",
-                width = 2 * (l + h) + tabExtra,
-                height = w + 2 * h + tabExtra
+                width = r2(l + h * 4 + 2),
+                height = r2(w * 2 + h * 3 + 2)
             ),
             LayoutKey.OPEN_1X2 to LayoutResult(
                 "1×2",
-                width = 2 * (l + h) + tabExtra,
-                height = 2 * (w + 2 * h) + tabExtra
+                width = r2(h * 5 + l * 2 + (h - 0.5) * 2 + 2),
+                height = r2(h * 3 + w * 2 + 2)
             ),
             LayoutKey.OPEN_1X4 to LayoutResult(
                 "1×4",
-                width = 2 * (2 * (l + h)) + tabExtra,
-                height = 2 * (w + 2 * h) + tabExtra
+                width = r2(h * 5 + 2 + l * 2 + (h - 0.5) * 2),
+                height = r2((h * 3 + w * 2) * 2 + 2)
             ),
             LayoutKey.OPEN_1X6 to LayoutResult(
                 "1×6",
-                width = 2 * (3 * (l + h)) + tabExtra,
-                height = 2 * (w + 2 * h) + tabExtra
+                width = r2(h * 6 + 2 + l * 3 + (h - 0.5) * 4),
+                height = r2((h * 3 + w * 2) * 2 + 2)
             )
         )
     }
