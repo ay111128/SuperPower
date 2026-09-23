@@ -35,7 +35,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -44,6 +43,7 @@ import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.draw
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -221,7 +221,7 @@ private class BoxProj(
 }
 
 /**
- * 把整个预览场景（背景 / 阴影 / 盒子 / 尺寸标注）画进当前 DrawScope。
+ * 把整个预览场景（背景 / 盒子 / 尺寸标注）画进当前 DrawScope。
  * 屏幕预览与导出位图**共用这一份** —— 导出图与所见完全一致，
  * 且不依赖任何窗口坐标换算（此前「截屏再裁剪」在 Dialog 窗口下坐标系错位，已废弃）。
  */
@@ -251,22 +251,8 @@ private fun DrawScope.renderBoxScene(
         )
         if (!proj.valid) return
 
-        val hx = proj.hx
-        val hy = proj.hy
         val corners = proj.corners
         fun scr(p: Vec3): Offset = proj.screen(p)
-
-        // ── 阴影：底面中心下方一枚椭圆 ──
-        run {
-            val base = scr(Vec3(0f, -hy, 0f))
-            val rx = max(hx * proj.scale * 1.1f, 24.dp.toPx())
-            val ry = rx * 0.3f
-            drawOval(
-                color = Color(0x1F000000),
-                topLeft = Offset(base.x - rx, base.y - ry * 0.4f),
-                size = Size(rx * 2f, ry * 2f)
-            )
-        }
 
         // ── 6 个面：背面剔除后按深度远→近填色 ──
         val light = Vec3(0.35f, 0.8f, 0.45f).normalized() // 光源（视空间）：左上前方
@@ -343,32 +329,25 @@ private fun DrawScope.renderBoxScene(
                 drawLine(dimColor, q1 - tick, q1 + tick, strokeWidth = dimLineW)
             }
 
-            // 标签胶囊：白底描边，压在线中间
+            // 标注文字：无胶囊底框/描边，直接画字；跟着标注线的角度倾斜
+            // （超出 ±90° 翻转一次，保证任何视角文字都不会倒立）
             val layout = measurer.measure(label, labelStyle)
-            val pillW = layout.size.width + 14.dp.toPx()
-            val pillH = layout.size.height + 7.dp.toPx()
-            val pillC = mid + nrm * (dimOffset + 9.dp.toPx())
-            val pillTopLeft = Offset(pillC.x - pillW / 2f, pillC.y - pillH / 2f)
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.92f),
-                topLeft = pillTopLeft,
-                size = Size(pillW, pillH),
-                cornerRadius = CornerRadius(pillH / 2f)
+            val textC = mid + nrm * (dimOffset + 9.dp.toPx())
+            val textTopLeft = Offset(
+                textC.x - layout.size.width / 2f,
+                textC.y - layout.size.height / 2f
             )
-            drawRoundRect(
-                color = Color(0xFFDDDDDD),
-                topLeft = pillTopLeft,
-                size = Size(pillW, pillH),
-                cornerRadius = CornerRadius(pillH / 2f),
-                style = Stroke(1.dp.toPx())
-            )
-            drawText(
-                layout,
-                topLeft = Offset(
-                    pillC.x - layout.size.width / 2f,
-                    pillC.y - layout.size.height / 2f
-                )
-            )
+            if (degenerate) {
+                drawText(layout, topLeft = textTopLeft)
+            } else {
+                var angleDeg =
+                    Math.toDegrees(Math.atan2(e.y.toDouble(), e.x.toDouble())).toFloat()
+                if (angleDeg > 90f) angleDeg -= 180f
+                else if (angleDeg < -90f) angleDeg += 180f
+                rotate(degrees = angleDeg, pivot = textC) {
+                    drawText(layout, topLeft = textTopLeft)
+                }
+            }
         }
 
         // 长：钉住优先，否则自动选前/后底边里朝向相机的
