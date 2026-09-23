@@ -16,3 +16,6 @@
 
 # Hilt
 -dontwarn dagger.hilt.**
+
+# 崩溃日志可读：保留源文件名与行号（否则上报的堆栈全是 B3.s.c 混淆名）
+-keepattributes SourceFile,LineNumberTable
