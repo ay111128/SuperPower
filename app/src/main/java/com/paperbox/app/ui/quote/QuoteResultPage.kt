@@ -81,6 +81,7 @@ import com.paperbox.app.R
 import com.paperbox.app.data.api.models.QuoteHistoryEntry
 import com.paperbox.app.domain.model.ChargeLine
 import com.paperbox.app.domain.model.LayoutKey
+import com.paperbox.app.domain.model.PricingMode
 import com.paperbox.app.domain.model.QuoteComputation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -98,19 +99,36 @@ private data class DocRow(
     val amount: String,
 )
 
-/** 由计算结果生成报价单的初始行数据：主品行 + 已启用附加费行。 */
+/**
+ * 由计算结果生成报价单的初始行数据：主品行 + 已启用附加费行。
+ *
+ * 主品行金额 = 合计 − 附加费（finalAmount 已含附加费，见 CalculateQuoteUseCase）——
+ * 附加费单独成行后，行加总才等于合计金额；否则主品行吞掉附加费，
+ * 报价单看起来就是「附加费列了但合计没加上」。
+ * 附加费行与 Web 打印视图口径一致：规格进规格列，数量 = 订单数，单价 = 金额/数量。
+ */
 private fun buildDocRows(state: QuoteUiState, result: QuoteComputation, isEnglish: Boolean): List<DocRow> {
-    val unitPrice = if (state.form.orderQuantity > 0)
-        result.finalAmount / state.form.orderQuantity else 0.0
+    val qty = state.form.orderQuantity
+    val mainAmount = result.finalAmount - result.specialFeesSum
     val main = DocRow(
         name = if (isEnglish) "Mailer Box" else "飞机盒",
         spec = "${trimNumber(state.form.length)}×${trimNumber(state.form.width)}×${trimNumber(state.form.height)}",
-        quantity = "${state.form.orderQuantity}",
-        unitPrice = moneyPlain(unitPrice),
-        amount = money(result.finalAmount),
+        quantity = "$qty",
+        unitPrice = moneyPlain(if (qty > 0) mainAmount / qty else 0.0),
+        amount = money(mainAmount),
     )
     val fees = state.form.specialFees.filter { it.enabled }.map { fee ->
-        DocRow(fee.name, "-", "-", money(fee.amount), money(fee.amount))
+        val effective = when (fee.pricingMode) {
+            PricingMode.TOTAL -> fee.amount
+            PricingMode.UNIT_PRICE -> fee.unitPrice * qty
+        }
+        DocRow(
+            name = fee.name,
+            spec = fee.spec.ifBlank { "-" },
+            quantity = if (qty > 0) "$qty" else "-",
+            unitPrice = moneyPlain(if (qty > 0) effective / qty else 0.0),
+            amount = money(effective),
+        )
     }
     return listOf(main) + fees
 }
@@ -413,7 +431,10 @@ private fun QuoteBreakdownCard(state: QuoteUiState, result: QuoteComputation) {
                 ChargeLine(
                     "附加费",
                     result.specialFeesSum,
-                    state.form.specialFees.filter { it.enabled }.joinToString("、") { it.name }
+                    // 名称（规格）—— 和 Web 明细行 label 口径一致
+                    state.form.specialFees.filter { it.enabled }.joinToString("、") { fee ->
+                        if (fee.spec.isNotBlank()) "${fee.name}（${fee.spec}）" else fee.name
+                    }
                 )
             )
         }
@@ -871,12 +892,12 @@ private fun buildSpecHint(state: QuoteUiState, result: QuoteComputation, isEngli
     }
     val totalKg = num(result.totalWeight, 2)
     if (state.form.orderQuantity <= 0) {
-        return if (isEnglish) "Flat size: $dims ｜ Total Wt: $totalKg kg"
-                else "平铺尺寸：$dims ｜ 总重 ${totalKg}kg"
+        return if (isEnglish) "Carton: $dims ｜ Total Wt: $totalKg kg"
+                else "箱规：$dims ｜ 总重 ${totalKg}kg"
     }
     val unitG = num(result.totalWeight / state.form.orderQuantity * 1000, 0)
-    return if (isEnglish) "Flat size: $dims ｜ Wt/pc: $unitG g ｜ Total Wt: $totalKg kg"
-            else "平铺尺寸：$dims ｜ 单重 ${unitG}g/个 ｜ 总重 ${totalKg}kg"
+    return if (isEnglish) "Carton: $dims ｜ Wt/pc: $unitG g ｜ Total Wt: $totalKg kg"
+            else "箱规：$dims ｜ 单重 ${unitG}g/个 ｜ 总重 ${totalKg}kg"
 }
 
 @Composable

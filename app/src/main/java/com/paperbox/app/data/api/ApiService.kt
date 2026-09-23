@@ -39,7 +39,7 @@ interface ApiService {
     @PATCH("materials-api/materials/{id}")
     suspend fun updateMaterial(
         @Path("id") id: String,
-        @Body body: Map<String, Any>
+        @Body body: UpdateMaterialRequest
     ): Response<MaterialItem>
 
     @DELETE("materials-api/materials/{id}")

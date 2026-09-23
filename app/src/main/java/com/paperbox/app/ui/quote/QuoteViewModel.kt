@@ -46,7 +46,7 @@ data class QuoteUiState(
     val widthText: String = "",
     val heightText: String = "",
     val quantityText: String = "",
-    val profitText: String = "",
+    val profitText: String = "10",
     val result: QuoteComputation? = null,
     val materialConfigs: List<MaterialConfig> = CalculateQuoteUseCase.DEFAULT_MATERIALS,
     val spotProducts: List<SpotProduct> = emptyList(),
@@ -652,6 +652,15 @@ class QuoteViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(searchResults = emptyList())
     }
 
+    /**
+     * 搜索命中后回填表单与计算结果。
+     *
+     * 记录里存的是**结算结果**（材料/工艺/附加费/利润各项金额），回填必须以它为准——
+     * 不能 recalculate() 用空表单（无工艺、无附加费）重算覆盖，否则旧记录的
+     * 附加费、利润、工艺费在结果页直接消失。
+     * 表单侧尽量恢复能从记录推导的字段，保证：① 报价单/明细行加总 = 合计；
+     * ② 用户随后改字段触发重算时，基线贴近原记录（工艺开关无法恢复，记录没存）。
+     */
     private fun applySearchResult(record: QuoteRecordDetail) {
         val materialKey = record.materialKey?.let { MaterialKey.fromApiKey(it) } ?: MaterialKey.KRAFT_SMALL
         val materialCost = record.materialCost ?: 0.0
@@ -660,14 +669,49 @@ class QuoteViewModel @Inject constructor(
         val profitAmount = record.profitAmount ?: 0.0
         val extraFee = record.extraFee ?: 0.0
         val finalAmount = record.finalAmount ?: 0.0
+        val materialUnitPrice = record.materialUnitPrice ?: 0.0
+
+        // 附加费明细没入库，只有总额——合成一条，让明细行/报价单附加费行/行加总恢复一致
+        val restoredFees = if (specialFeesCost > 0) {
+            listOf(SpecialFee(id = "restored-fee", name = "附加费", amount = specialFeesCost, enabled = true))
+        } else {
+            emptyList()
+        }
+        // 保存时 extraFee 已是「启用才写入」的落账值：>0 即当时启用
+        val restoredExtraFee = if (extraFee > 0) extraFee else 0.0
+        // 利润只存了绝对额，按记录的基数反推百分比，让利润输入框与实际值一致
+        // 保留 2 位小数：过 PERCENT_INPUT 正则，输入框也不会显示一长串小数
+        val subtotalBase = materialCost + processCost + extraFee
+        val profitPct = if (subtotalBase > 0)
+            Math.round(profitAmount / subtotalBase * 100.0 * 100.0) / 100.0
+        else 0.0
+
+        val restoredForm = QuoteFormValues(
+            length = record.length,
+            width = record.width,
+            height = record.height,
+            orderQuantity = record.quantity,
+            materialKey = materialKey,
+            materialUnitPrices = if (materialUnitPrice > 0) mapOf(materialKey to materialUnitPrice) else emptyMap(),
+            extraFeeEnabled = extraFee > 0,
+            extraFee = restoredExtraFee,
+            profitPercentage = profitPct,
+            specialFees = restoredFees
+        )
+
+        // 只借新计算取**几何量**（展开面积/刀模排版），金额字段一律用记录值
+        val fresh = calculateQuote.calculate(restoredForm, _uiState.value.materialConfigs, null)
 
         val computation = QuoteComputation(
-            layouts = emptyMap(),
-            areaM2 = 0.0,
+            layouts = fresh?.layouts ?: emptyMap(),
+            areaM2 = fresh?.areaM2 ?: 0.0,
             materialLabel = record.materialLabel ?: "",
             materialKey = materialKey,
-            materialUnitPrice = record.materialUnitPrice ?: 0.0,
-            chargeLines = emptyList(),
+            materialUnitPrice = materialUnitPrice,
+            chargeLines = buildList {
+                if (materialCost != 0.0) add(ChargeLine(record.materialLabel ?: "材料费", materialCost))
+                if (processCost != 0.0) add(ChargeLine("工艺费", processCost))
+            },
             subtotal = materialCost + processCost,
             afterExtraFee = materialCost + processCost + extraFee,
             profitAmount = profitAmount,
@@ -683,24 +727,19 @@ class QuoteViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             result = computation,
             traceCode = record.traceCode,
-            form = QuoteFormValues(
-                length = record.length,
-                width = record.width,
-                height = record.height,
-                orderQuantity = record.quantity,
-                materialKey = materialKey
-            ),
+            lastSavedForm = restoredForm, // 未修改再点生成 → 复用工单号，不重复入库
+            form = restoredForm,
             lengthText = trimNumber(record.length),
             widthText = trimNumber(record.width),
             heightText = trimNumber(record.height),
             quantityText = record.quantity.toString(),
+            profitText = trimNumber(profitPct),
             searchResults = emptyList(),
             isSearchActive = false,
             searchFieldText = "",
             searchReady = true,
             isLoading = false
         )
-        recalculate()
         rematch()
     }
 
@@ -715,7 +754,7 @@ class QuoteViewModel @Inject constructor(
             widthText = "",
             heightText = "",
             quantityText = "",
-            profitText = "",
+            profitText = "10",
             result = null,
             traceCode = null,
             lastSavedForm = null,

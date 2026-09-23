@@ -47,6 +47,18 @@ data class MaterialListResponse(
     val total: Int
 )
 
+/**
+ * PATCH /materials/{id} 请求体。
+ * 不要用 Map<String, Any>——Moshi 对 Any 值里装 List 的序列化不可靠，
+ * 曾导致写请求体阶段就抛异常，PATCH 根本发不出去（nginx 0 记录）。
+ */
+@JsonClass(generateAdapter = true)
+data class UpdateMaterialRequest(
+    val name: String,
+    val remark: String,
+    val tags: List<String>
+)
+
 @JsonClass(generateAdapter = true)
 data class UploadResponse(
     val created: List<MaterialItem>,

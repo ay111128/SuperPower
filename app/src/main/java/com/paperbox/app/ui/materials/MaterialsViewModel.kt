@@ -17,6 +17,7 @@ import com.paperbox.app.data.api.dataStore
 import com.paperbox.app.data.api.models.ColorItem
 import com.paperbox.app.data.api.models.FilterCountsResponse
 import com.paperbox.app.data.api.models.MaterialItem
+import com.paperbox.app.data.api.models.UpdateMaterialRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -71,6 +72,8 @@ data class MaterialsUiState(
     val tagDraft: Set<String> = emptySet(),
     val nameDraft: String = "",
     val remarkDraft: String = "",
+    /** 编辑弹窗内部的错误提示——snackbar 会被弹窗盖住，失败必须画在弹窗里 */
+    val editError: String? = null,
     // 消息
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false, // 下拉刷新中（不隐藏列表，只转顶部指示器）
@@ -437,7 +440,8 @@ class MaterialsViewModel @Inject constructor(
             showEditDialog = true,
             tagDraft = material.tags.toSet(),
             nameDraft = material.name,
-            remarkDraft = material.remark
+            remarkDraft = material.remark,
+            editError = null
         )
     }
 
@@ -461,41 +465,46 @@ class MaterialsViewModel @Inject constructor(
     }
 
     fun dismissEditDialog() {
-        _uiState.value = _uiState.value.copy(showEditDialog = false)
+        _uiState.value = _uiState.value.copy(showEditDialog = false, editError = null)
     }
 
     fun saveMaterial() {
         val material = _uiState.value.selectedMaterial ?: return
         val name = _uiState.value.nameDraft.trim()
         if (name.isEmpty()) {
-            _uiState.value = _uiState.value.copy(toastMessage = "名称不能为空")
+            _uiState.value = _uiState.value.copy(editError = "名称不能为空")
             return
         }
         val remark = _uiState.value.remarkDraft.trim()
         val tags = _uiState.value.tagDraft.toList()
         viewModelScope.launch {
             try {
+                diagLog("保存素材开始 id=${material.id} tags=$tags")
                 val response = apiService.updateMaterial(
                     material.id,
-                    mapOf("name" to name, "remark" to remark, "tags" to tags)
+                    UpdateMaterialRequest(name = name, remark = remark, tags = tags)
                 )
                 if (response.isSuccessful) {
+                    diagLog("保存素材成功 id=${material.id}")
                     _uiState.value = _uiState.value.copy(
                         showEditDialog = false,
+                        editError = null,
                         toastMessage = "已保存"
                     )
                     loadMaterials()
                     loadFilterCounts()
                     loadTags() // 新建的标签要进词表，否则筛选/建议里搜不到
                 } else {
-                    // HTTP 4xx/5xx 也要有反馈，否则看起来像点了没反应
+                    // 画在弹窗里——snackbar 在 AlertDialog 下层，用户看不见
+                    diagLog("保存素材失败 HTTP ${response.code()}")
                     _uiState.value = _uiState.value.copy(
-                        toastMessage = "保存失败：HTTP ${response.code()}"
+                        editError = "保存失败：HTTP ${response.code()}"
                     )
                 }
             } catch (e: Exception) {
+                diagLog("保存素材异常 ${e.message}")
                 _uiState.value = _uiState.value.copy(
-                    toastMessage = "保存失败：${e.message}"
+                    editError = "保存失败：${e.message}"
                 )
             }
         }

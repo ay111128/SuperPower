@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -144,6 +145,8 @@ fun MediaViewerScreen(
     var tagDraft by remember { mutableStateOf<Set<String>>(emptySet()) }
     var availableTags by remember { mutableStateOf<List<String>>(emptyList()) }
     var isSaving by remember { mutableStateOf(false) }
+    // 保存失败画在弹窗里：snackbar 在 AlertDialog 下层，用户看不见
+    var editError by remember { mutableStateOf<String?>(null) }
 
     fun openEditDialog() {
         nameDraft = currentMaterial.name
@@ -151,6 +154,7 @@ fun MediaViewerScreen(
         tagDraft = currentMaterial.tags.toSet()
         // 先展示素材已有标签，随后端词表补齐
         availableTags = currentMaterial.tags
+        editError = null
         showMenu = false
         showEditDialog = true
         viewModel.fetchTags { tags ->
@@ -366,6 +370,14 @@ fun MediaViewerScreen(
                         },
                         onRemove = { tagDraft = tagDraft - it }
                     )
+                    editError?.let { msg ->
+                        Text(
+                            msg,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 13.sp,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -373,6 +385,7 @@ fun MediaViewerScreen(
                     enabled = nameDraft.isNotBlank() && !isSaving,
                     onClick = {
                         isSaving = true
+                        editError = null
                         viewModel.updateMaterial(
                             materialId = currentMaterial.id,
                             name = nameDraft.trim(),
@@ -391,6 +404,8 @@ fun MediaViewerScreen(
                                 currentMaterial = updated
                                 showEditDialog = false
                                 onMaterialUpdated()
+                            } else {
+                                editError = msg
                             }
                             scope.launch { snackbarHostState.showSnackbar(msg) }
                         }

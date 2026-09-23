@@ -715,6 +715,15 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         onAdd = viewModel::addTagDraft,
                         onRemove = viewModel::removeTagDraft
                     )
+                    // 保存失败画在弹窗里：snackbar 在 AlertDialog 下层，用户看不见
+                    state.editError?.let { msg ->
+                        Text(
+                            msg,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 13.sp,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             },
             confirmButton = {

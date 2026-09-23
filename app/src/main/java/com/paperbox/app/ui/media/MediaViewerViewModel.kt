@@ -15,6 +15,7 @@ import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.paperbox.app.BuildConfig
 import com.paperbox.app.data.api.ApiClient
+import com.paperbox.app.data.api.models.UpdateMaterialRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -120,7 +121,7 @@ class MediaViewerViewModel @Inject constructor(
                 withContext(Dispatchers.IO) {
                     val response = apiClient.apiService.updateMaterial(
                         materialId,
-                        mapOf("name" to name, "remark" to remark, "tags" to tags)
+                        UpdateMaterialRequest(name = name, remark = remark, tags = tags)
                     )
                     if (!response.isSuccessful) {
                         @Suppress("DEPRECATION")

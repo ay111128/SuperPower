@@ -131,7 +131,7 @@ data class QuoteFormValues(
     val extraFee: Double = 300.0,
     val markupRate: Double = 1.05,
     val profitMode: ProfitMode = ProfitMode.PERCENTAGE,
-    val profitPercentage: Double = 0.0,
+    val profitPercentage: Double = 10.0,
     val profitAmount: Double = 0.0,
     val materialKey: MaterialKey = MaterialKey.KRAFT_SMALL,
     val materialUnitPrices: Map<MaterialKey, Double> = emptyMap(),
