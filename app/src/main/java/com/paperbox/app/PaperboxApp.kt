@@ -12,6 +12,12 @@ class PaperboxApp : Application(), ImageLoaderFactory {
 
     private var _imageLoader: ImageLoader? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        // 崩溃落盘 → 下次启动弹窗展示（诊断期）
+        CrashDiagnostics.install(this)
+    }
+
     override fun newImageLoader(): ImageLoader {
         if (_imageLoader == null) {
             try {

@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.drawToBitmap
+import com.paperbox.app.CrashDiagnostics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -424,6 +425,7 @@ private fun BoxPreviewCanvas(
     var pins by remember { mutableStateOf(emptyMap<Dim, Pair<Int, Int>>()) }
     var canvasSize by remember { mutableStateOf(Size.Zero) }
     val density = LocalDensity.current
+    val context = LocalContext.current
     val measurer = rememberTextMeasurer()
 
     Canvas(
@@ -433,39 +435,48 @@ private fun BoxPreviewCanvas(
             // 点选：离点击最近的可见棱 → 钉住/取消；点空白恢复自动
             .pointerInput(lengthCm, widthCm, heightCm) {
                 detectTapGestures { tap ->
-                    if (canvasSize.width <= 0f) return@detectTapGestures
-                    val proj = BoxProj(
-                        lengthCm.toFloat(), widthCm.toFloat(), heightCm.toFloat(),
-                        yawDeg, pitchDeg, zoomLevel,
-                        canvasSize.width, canvasSize.height, density
-                    )
-                    if (!proj.valid) return@detectTapGestures
-
-                    val visFaces = proj.visibleFaceSet()
-                    val threshold = with(density) { 30.dp.toPx() }
-                    var bestKey: Pair<Int, Int>? = null
-                    var bestDist = Float.MAX_VALUE
-                    for (key in ALL_EDGES) {
-                        // 只考虑当前视角下可见的棱（至少一个相邻面朝向相机）
-                        if (EDGE_FACES[key]!!.none { it in visFaces }) continue
-                        val d = distToSegment(
-                            tap,
-                            proj.screen(proj.corners[key.first]),
-                            proj.screen(proj.corners[key.second])
+                    // 诊断期包裹：点选异常 Toast 提示，不崩
+                    try {
+                        if (canvasSize.width <= 0f) return@detectTapGestures
+                        val proj = BoxProj(
+                            lengthCm.toFloat(), widthCm.toFloat(), heightCm.toFloat(),
+                            yawDeg, pitchDeg, zoomLevel,
+                            canvasSize.width, canvasSize.height, density
                         )
-                        if (d < bestDist) {
-                            bestDist = d
-                            bestKey = key
+                        if (!proj.valid) return@detectTapGestures
+
+                        val visFaces = proj.visibleFaceSet()
+                        val threshold = with(density) { 30.dp.toPx() }
+                        var bestKey: Pair<Int, Int>? = null
+                        var bestDist = Float.MAX_VALUE
+                        for (key in ALL_EDGES) {
+                            // 只考虑当前视角下可见的棱（至少一个相邻面朝向相机）
+                            if (EDGE_FACES[key]!!.none { it in visFaces }) continue
+                            val d = distToSegment(
+                                tap,
+                                proj.screen(proj.corners[key.first]),
+                                proj.screen(proj.corners[key.second])
+                            )
+                            if (d < bestDist) {
+                                bestDist = d
+                                bestKey = key
+                            }
+                        }
+
+                        if (bestKey == null || bestDist > threshold) {
+                            pins = emptyMap() // 点空白：全部恢复自动
+                            return@detectTapGestures
+                        }
+                        val dim = proj.classifyEdge(bestKey)
+                        // 再点同一条 = 解除钉住；点别的 = 换钉
+                        pins = if (pins[dim] == bestKey) pins - dim else pins + (dim to bestKey)
+                    } catch (e: Throwable) {
+                        CrashDiagnostics.record(e, context)
+                        try {
+                            Toast.makeText(context, "点选标注出错，已记录并上传", Toast.LENGTH_SHORT).show()
+                        } catch (_: Throwable) {
                         }
                     }
-
-                    if (bestKey == null || bestDist > threshold) {
-                        pins = emptyMap() // 点空白：全部恢复自动
-                        return@detectTapGestures
-                    }
-                    val dim = proj.classifyEdge(bestKey)
-                    // 再点同一条 = 解除钉住；点别的 = 换钉
-                    pins = if (pins[dim] == bestKey) pins - dim else pins + (dim to bestKey)
                 }
             }
             // 拖动/捏合在后：点按（无位移）不会被它消费，拖动时点按手势自行取消
@@ -478,6 +489,8 @@ private fun BoxPreviewCanvas(
             }
     ) {
         if (lengthCm <= 0 || widthCm <= 0 || heightCm <= 0) return@Canvas
+        // 诊断期包裹：绘制异常时把错误画在画布上，进程不退（定位后整理缩进）
+        try {
         val proj = BoxProj(
             lengthCm.toFloat(), widthCm.toFloat(), heightCm.toFloat(),
             yawDeg, pitchDeg, zoomLevel,
@@ -625,5 +638,18 @@ private fun BoxPreviewCanvas(
         drawDim(lenEdge, "$lenWord ${trimNumber(lengthCm)}cm")
         drawDim(widEdge, "$widWord ${trimNumber(widthCm)}cm")
         drawDim(htEdge, "$htWord ${trimNumber(heightCm)}cm")
+        } catch (e: Throwable) {
+            // 绘制崩溃兜底：自动落盘并上传（同一条异常只记一次），错误也画在画布上，进程不退
+            CrashDiagnostics.record(e, context)
+            try {
+                val errLayout = measurer.measure(
+                    "绘制崩溃(已拦截，已自动上报)\n$e",
+                    TextStyle(fontSize = 12.sp, color = Color(0xFFD32F2F))
+                )
+                drawText(errLayout, topLeft = Offset(16.dp.toPx(), 16.dp.toPx()))
+            } catch (_: Throwable) {
+                // 兜底绘制也失败就放弃本帧，日志已经在路上了
+            }
+        }
     }
 }
