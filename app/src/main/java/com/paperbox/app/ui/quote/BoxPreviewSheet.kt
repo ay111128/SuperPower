@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -441,7 +443,7 @@ internal fun BoxPreviewSheet(
         }
         scope.launch {
             try {
-                saveBitmapToGallery(context, bmp, "飞机盒尺寸_${System.currentTimeMillis()}.jpg")
+                saveBitmapToGallery(context, bmp, "飞机盒尺寸_${System.currentTimeMillis()}.png")
                 Toast.makeText(
                     context,
                     if (isEnglish) "Saved to gallery" else "已保存到相册",
@@ -464,6 +466,10 @@ internal fun BoxPreviewSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // 键盘弹出时把整列（含模型画布）顶到输入法上方：
+                // Sheet 窗口在 Android 11+ 是 ADJUST_NOTHING + edge-to-edge，
+                // 键盘高度以 ime inset 进组合，imePadding 正是官方接管方式
+                .imePadding()
                 .padding(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -510,11 +516,11 @@ internal fun BoxPreviewSheet(
                 }
             }
 
-            // ── 画布：通栏贴屏幕边缘，不给内边距，视野全留给模型 ──
+            // ── 画布：通栏贴屏幕边缘 + 1:1 正方形视口 → 所见即所存，导出天然1:1 ──
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(340.dp)
+                    .aspectRatio(1f)
                     .background(QuoteRowBg)
             ) {
                 BoxPreviewCanvas(

@@ -1160,12 +1160,13 @@ private fun CardInfoRow(label: String, value: String) {
 internal suspend fun saveBitmapToGallery(
     context: android.content.Context,
     bitmap: Bitmap,
-    filename: String = "报价单_${System.currentTimeMillis()}.jpg"
+    // 统一为真 PNG：compress 本来就是 PNG，此前文件名/MIME 却标成 jpg（标签与内容不符）
+    filename: String = "报价单_${System.currentTimeMillis()}.png"
 ) {
     withContext(Dispatchers.IO) {
         val contentValues = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, filename)
-            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/小鱼包装")
                 put(MediaStore.Images.Media.IS_PENDING, 1)
