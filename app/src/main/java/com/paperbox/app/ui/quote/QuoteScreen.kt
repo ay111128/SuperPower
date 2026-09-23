@@ -33,7 +33,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.paperbox.app.CrashDiagnostics
 import com.paperbox.app.domain.model.LayoutKey
 import com.paperbox.app.domain.model.MaterialKey
 
@@ -455,23 +454,16 @@ fun QuoteScreen(
             }
 
             // ── 3D 尺寸预览弹层 ──
-            // 诊断期包裹：组合阶段崩溃当场拦截 → 落盘并自动上传，进程不退
+            // 注：Compose 不允许 try/catch 包组合调用；组合阶段崩溃走全局 handler
+            // 落盘 → 下次冷启动 CrashDiagnostics 自动上传
             if (showBoxPreview) {
-                try {
-                    BoxPreviewSheet(
-                        state = state,
-                        onLength = viewModel::updateLength,
-                        onWidth = viewModel::updateWidth,
-                        onHeight = viewModel::updateHeight,
-                        onDismiss = { showBoxPreview = false }
-                    )
-                } catch (e: Throwable) {
-                    showBoxPreview = false
-                    CrashDiagnostics.record(e, context)
-                    android.widget.Toast.makeText(
-                        context, "3D预览崩溃，已记录并自动上传", android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                }
+                BoxPreviewSheet(
+                    state = state,
+                    onLength = viewModel::updateLength,
+                    onWidth = viewModel::updateWidth,
+                    onHeight = viewModel::updateHeight,
+                    onDismiss = { showBoxPreview = false }
+                )
             }
         }
     }
