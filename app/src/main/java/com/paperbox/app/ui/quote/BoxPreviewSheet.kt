@@ -16,8 +16,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.paperbox.app.CrashDiagnostics
@@ -415,6 +417,7 @@ private fun BareSymbolButton(
 @Composable
 internal fun BoxPreviewSheet(
     state: QuoteUiState,
+    imeBottom: Dp = 0.dp, // 主窗口测得的键盘高度（Dialog 窗口不发 ime inset，由 QuoteScreen 传入）
     onLength: (String) -> Unit,
     onWidth: (String) -> Unit,
     onHeight: (String) -> Unit,
@@ -427,6 +430,10 @@ internal fun BoxPreviewSheet(
     var isEnglish by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // 键盘上顶量 = 主窗口传入值 与 本(Dialog)窗口 ime 读数 取较大者：
+    // Sheet 窗口 Android 11+ 是 ADJUST_NOTHING，实测不下发 ime inset（imePadding 读0）；
+    // 主窗口走全局 insets 分发（首页 FAB 避让同款读法，线上有效）。谁生效用谁，双生效不叠加。
+    val imeLift = maxOf(imeBottom, WindowInsets.ime.asPaddingValues().calculateBottomPadding())
     // 画布注册的导出函数：基于当前相机状态离屏重渲一张位图
     var captureProvider by remember { mutableStateOf<(() -> Bitmap?)?>(null) }
 
@@ -466,11 +473,8 @@ internal fun BoxPreviewSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                // 键盘弹出时把整列（含模型画布）顶到输入法上方：
-                // Sheet 窗口在 Android 11+ 是 ADJUST_NOTHING + edge-to-edge，
-                // 键盘高度以 ime inset 进组合，imePadding 正是官方接管方式
-                .imePadding()
-                .padding(bottom = 28.dp),
+                // 键盘弹出时把整列（模型画布+输入框）顶到输入法上方，输入框离键盘28dp
+                .padding(bottom = 28.dp + imeLift),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // ── 标题行：标题居中，右手边 中/EN + 下载 ──

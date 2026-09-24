@@ -459,6 +459,8 @@ fun QuoteScreen(
             if (showBoxPreview) {
                 BoxPreviewSheet(
                     state = state,
+                    // 主窗口实测键盘高度：Sheet 的 Dialog 窗口不下发 ime inset，靠它上顶
+                    imeBottom = imeBottom,
                     onLength = viewModel::updateLength,
                     onWidth = viewModel::updateWidth,
                     onHeight = viewModel::updateHeight,
