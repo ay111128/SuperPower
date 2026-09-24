@@ -59,6 +59,16 @@ data class UpdateMaterialRequest(
     val tags: List<String>
 )
 
+/**
+ * PATCH /materials/{id} 上线状态专用请求体。
+ * 不并进 UpdateMaterialRequest：那个若加 online: Boolean? 被序列化成 null，
+ * 服务端 'online' in body 判真、null !== true → 每次编辑保存都会把素材悄悄下线。
+ */
+@JsonClass(generateAdapter = true)
+data class UpdateOnlineRequest(
+    val online: Boolean
+)
+
 @JsonClass(generateAdapter = true)
 data class UploadResponse(
     val created: List<MaterialItem>,

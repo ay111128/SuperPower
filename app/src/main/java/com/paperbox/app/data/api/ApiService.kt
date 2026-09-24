@@ -42,6 +42,13 @@ interface ApiService {
         @Body body: UpdateMaterialRequest
     ): Response<MaterialItem>
 
+    /** 上线/取消上线：只 PATCH online 一个字段（和 Web 端 🌐 开关同款），服务端按字段存在性更新 */
+    @PATCH("materials-api/materials/{id}")
+    suspend fun updateMaterialOnline(
+        @Path("id") id: String,
+        @Body body: UpdateOnlineRequest
+    ): Response<MaterialItem>
+
     @DELETE("materials-api/materials/{id}")
     suspend fun deleteMaterial(@Path("id") id: String): Response<Map<String, Boolean>>
 
@@ -61,7 +68,10 @@ interface ApiService {
     ): Response<ColorCountsResponse>
 
     @GET("materials-api/materials/filter-counts")
-    suspend fun getFilterCounts(): Response<FilterCountsResponse>
+    suspend fun getFilterCounts(
+        @Query("tags") tags: String? = null,
+        @Query("online") online: String? = null
+    ): Response<FilterCountsResponse>
 
     @POST("materials-api/materials/scan-duplicates")
     suspend fun scanDuplicates(): Response<Map<String, Any>>

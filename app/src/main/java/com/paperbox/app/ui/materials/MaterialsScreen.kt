@@ -50,9 +50,11 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.VideoFile
@@ -114,6 +116,9 @@ import com.paperbox.app.ui.components.TagEditor
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 import kotlinx.coroutines.launch
 
 // ── 设计稿颜色 ──
@@ -166,6 +171,39 @@ private fun formatSize(bytes: Long): String = when {
     bytes >= 1_048_576 -> "%.1fMB".format(bytes / 1_048_576.0)
     bytes >= 1024 -> "%.0fKB".format(bytes / 1024.0)
     else -> "${bytes}B"
+}
+
+// ── ISO 时间（服务器存 UTC）→ 本地 "yyyy-MM-dd HH:mm:ss"，和 Web 端详情面板口径一致 ──
+private fun formatIsoTime(iso: String): String = try {
+    SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+            .apply { timeZone = TimeZone.getTimeZone("UTC") }
+            .parse(iso)!!
+    )
+} catch (e: Exception) {
+    iso.take(16).replace('T', ' ')
+}
+
+/** 详情弹窗字段行：左标签灰字，右值右对齐可换行 */
+@Composable
+private fun DetailRow(label: String, value: String, valueColor: Color = Color.Unspecified) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            color = Color(0xFF999999)
+        )
+        Text(
+            text = value,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = valueColor,
+            textAlign = TextAlign.End,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 16.dp)
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -307,10 +345,12 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                     .background(FilterBg)
                     .padding(vertical = 8.dp)
             ) {
-                // 使用服务端筛选计数
+                // 使用服务端筛选计数；分类优先用 color-scoped（tags×仅上线精确口径）
                 val fc = state.filterCounts
+                val scoped = state.colorScoped
                 val totalCount = fc.total
-                val colorCounts = fc.colorCounts
+                val colorCounts = scoped?.counts ?: fc.colorCounts
+                val colorTotal = scoped?.total ?: fc.total
                 val tagCounts = fc.tagCounts
                 val typeCounts = fc.typeCounts
 
@@ -329,7 +369,7 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                         item {
                             FilterDropdown(
                                 label = "分类",
-                                options = listOf("全部分类($totalCount)") + state.colors.map { "${it.name}(${colorCounts[it.name] ?: 0})" },
+                                options = listOf("全部分类($colorTotal)") + state.colors.map { "${it.name}(${colorCounts[it.name] ?: 0})" },
                                 selectedIndex = if (state.selectedColor.isBlank()) 0
                                     else state.colors.indexOfFirst { it.name == state.selectedColor } + 1,
                                 onSelect = { idx ->
@@ -389,6 +429,32 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                                 },
                                 modifier = Modifier.width(100.dp)
                             )
+                        }
+                        // 仅上线开关（服务端 online=1 过滤，和 Web 端同款；高度对齐 42dp 下拉框）
+                        item {
+                            val active = state.onlyOnline
+                            Row(
+                                modifier = Modifier
+                                    .height(42.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (active) Color(0xFF34A853) else FilterBg)
+                                    .clickable { viewModel.toggleOnlyOnline() }
+                                    .padding(horizontal = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Public,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = if (active) Color.White else Color(0xFF34A853)
+                                )
+                                Text(
+                                    "仅上线",
+                                    fontSize = 13.sp,
+                                    color = if (active) Color.White else Color(0xFF333333)
+                                )
+                            }
                         }
                     }
 
@@ -646,6 +712,28 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                 textAlign = TextAlign.Center
             )
             ListItem(
+                headlineContent = { Text("素材详情") },
+                supportingContent = { Text("查看完整信息") },
+                leadingContent = {
+                    Surface(shape = RoundedCornerShape(11.dp), color = Color(0xFFEAF2FF), modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.padding(8.dp), tint = Color(0xFF4A7FD4))
+                    }
+                },
+                modifier = Modifier.clickable { viewModel.showDetailDialogForMaterial() }
+            )
+            ListItem(
+                headlineContent = { Text(if (state.selectedMaterial?.online == true) "取消上线" else "上线") },
+                supportingContent = {
+                    Text(if (state.selectedMaterial?.online == true) "当前已上线，列表置顶显示" else "标为已上线，排到列表最前")
+                },
+                leadingContent = {
+                    Surface(shape = RoundedCornerShape(11.dp), color = Color(0xFFE8F7EE), modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.padding(8.dp), tint = Color(0xFF34A853))
+                    }
+                },
+                modifier = Modifier.clickable { viewModel.toggleOnline() }
+            )
+            ListItem(
                 headlineContent = { Text("下载素材") },
                 supportingContent = { Text("保存到本地") },
                 leadingContent = {
@@ -754,6 +842,57 @@ fun MaterialsScreen(navController: NavController, viewModel: MaterialsViewModel 
                 TextButton(onClick = { viewModel.dismissDeleteDialog() }) { Text("取消") }
             }
         )
+    }
+
+    // ── 素材详情弹窗：长按/更多 → 素材详情 ──
+    if (state.showDetailDialog) {
+        val material = state.selectedMaterial
+        if (material != null) {
+            val typeStyle = MaterialTypeColors.styleFor(material.type)
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissDetailDialog() },
+                title = { Text("素材详情", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DetailRow("名称", material.name)
+                        DetailRow("类型", "${typeStyle.name}（${material.type}）")
+                        DetailRow("大小", formatSize(material.size))
+                        if (material.createdAt.isNotBlank()) {
+                            DetailRow("上传时间", formatIsoTime(material.createdAt))
+                        }
+                        DetailRow(
+                            "颜色",
+                            material.color.ifBlank { "未分类" },
+                            valueColor = if (material.color.isBlank()) Color(0xFFAAAAAA) else Color.Unspecified
+                        )
+                        DetailRow(
+                            "标签",
+                            material.tags.joinToString("、").ifBlank { "—" },
+                            valueColor = if (material.tags.isEmpty()) Color(0xFFAAAAAA) else Color.Unspecified
+                        )
+                        DetailRow(
+                            "描述",
+                            material.remark.ifBlank { "—" },
+                            valueColor = if (material.remark.isBlank()) Color(0xFFAAAAAA) else Color.Unspecified
+                        )
+                        DetailRow(
+                            "状态",
+                            if (material.online) "已上线" else "未上线",
+                            valueColor = if (material.online) Color(0xFF34A853) else Color(0xFF9AA0A6)
+                        )
+                        DetailRow("ID", material.id, valueColor = Color(0xFF999999))
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.dismissDetailDialog() }) { Text("关闭") }
+                }
+            )
+        }
     }
 }
 
@@ -922,6 +1061,34 @@ private fun MaterialGridCard(
                         fontWeight = FontWeight.Medium
                     )
                 }
+                // 已上线角标（右上角）—— 服务端恒 online DESC 置顶，没标识的话用户看不出为啥时间序"不准"
+                if (material.online) {
+                    Surface(
+                        shape = RoundedCornerShape(3.dp),
+                        color = Color(0xFF34A853),
+                        modifier = Modifier.padding(top = 4.dp, end = 4.dp).align(Alignment.TopEnd)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Public,
+                                contentDescription = null,
+                                modifier = Modifier.size(9.dp),
+                                tint = Color.White
+                            )
+                            Text(
+                                text = "已上线",
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                lineHeight = 9.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
             }
 
             // 信息区：只有标签，不放操作按钮（长按卡片出菜单，保持卡片简洁）
@@ -1021,6 +1188,18 @@ private fun MaterialListCard(
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // 已上线标记（列表卡片缩略图太小放不下角标，用绿色 chip 混进标签行）
+                    if (material.online) {
+                        Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFF34A853)) {
+                            Text(
+                                text = "已上线",
+                                fontSize = 10.sp,
+                                lineHeight = 10.sp,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
                     if (material.tags.isNotEmpty()) {
                         material.tags.take(2).forEach { tag ->
                             Surface(shape = RoundedCornerShape(4.dp), color = TagBg) {

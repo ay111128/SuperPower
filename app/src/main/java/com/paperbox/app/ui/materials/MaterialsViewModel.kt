@@ -14,10 +14,12 @@ import com.paperbox.app.data.api.ApiClient
 import com.paperbox.app.data.api.ApiService
 import com.paperbox.app.data.api.PrefsKeys
 import com.paperbox.app.data.api.dataStore
+import com.paperbox.app.data.api.models.ColorCountsResponse
 import com.paperbox.app.data.api.models.ColorItem
 import com.paperbox.app.data.api.models.FilterCountsResponse
 import com.paperbox.app.data.api.models.MaterialItem
 import com.paperbox.app.data.api.models.UpdateMaterialRequest
+import com.paperbox.app.data.api.models.UpdateOnlineRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +49,8 @@ data class MaterialsUiState(
     val selectedColor: String = "",
     val selectedCategory: String = "all",
     val selectedTags: Set<String> = emptySet(),
+    /** 仅上线筛选：服务端 online=1 过滤（和 Web 端同款） */
+    val onlyOnline: Boolean = false,
     val searchQuery: String = "",
     val sortOrder: String = "desc", // "asc" or "desc"
     // 内联搜索
@@ -58,6 +62,8 @@ data class MaterialsUiState(
     val isLoadingMore: Boolean = false,
     // 服务端筛选计数
     val filterCounts: FilterCountsResponse = FilterCountsResponse(),
+    /** 分类下拉专用计数（color-counts 接口，tags×仅上线口径，和 Web 端同源）；null 时回退 filterCounts */
+    val colorScoped: ColorCountsResponse? = null,
     // 滚动位置记忆
     val scrollIndex: Int = 0,
     val scrollOffset: Int = 0,
@@ -66,6 +72,7 @@ data class MaterialsUiState(
     // 弹窗状态
     val showUploadSheet: Boolean = false,
     val showMoreSheet: Boolean = false,
+    val showDetailDialog: Boolean = false,
     val showEditDialog: Boolean = false,
     val showDeleteDialog: Boolean = false,
     val selectedMaterial: MaterialItem? = null,
@@ -119,6 +126,7 @@ class MaterialsViewModel @Inject constructor(
                 val response = apiService.getMaterials(
                     color = state.selectedColor.ifBlank { null },
                     tags = tagsParam,
+                    online = if (state.onlyOnline) "1" else null,
                     query = state.searchQuery.ifBlank { null },
                     sort = state.sortOrder,
                     limit = PAGE_SIZE,
@@ -192,14 +200,25 @@ class MaterialsViewModel @Inject constructor(
         }
     }
 
-    /** 从服务端加载筛选计数（颜色/标签/类型） */
+    /** 从服务端加载筛选计数：口径 = 当前标签 × 仅上线（两端接口都传同款参数） */
     private fun loadFilterCounts() {
         viewModelScope.launch {
+            val state = _uiState.value
+            val tagsParam = state.selectedTags.joinToString(",").ifBlank { null }
+            val onlineParam = if (state.onlyOnline) "1" else null
             try {
-                val response = apiService.getFilterCounts()
+                val response = apiService.getFilterCounts(tags = tagsParam, online = onlineParam)
                 if (response.isSuccessful) {
                     val counts = response.body()!!
                     _uiState.value = _uiState.value.copy(filterCounts = counts)
+                }
+            } catch (_: Exception) { }
+            // 分类下拉另拉 color-counts（Web 端同款接口，原生支持 tags+online）：
+            // 服务端 filter-counts 参数版部署前它就能给出精确分类数，部署后两者互为兜底
+            try {
+                val response = apiService.getColorCounts(tags = tagsParam, online = onlineParam)
+                if (response.isSuccessful) {
+                    _uiState.value = _uiState.value.copy(colorScoped = response.body())
                 }
             } catch (_: Exception) { }
         }
@@ -312,11 +331,13 @@ class MaterialsViewModel @Inject constructor(
         val next = if (current.contains(tag)) emptySet() else setOf(tag)
         _uiState.value = _uiState.value.copy(selectedTags = next)
         loadMaterials()
+        loadFilterCounts()
     }
 
     fun clearTags() {
         _uiState.value = _uiState.value.copy(selectedTags = emptySet())
         loadMaterials()
+        loadFilterCounts()
     }
 
     fun toggleLayout() {
@@ -334,6 +355,13 @@ class MaterialsViewModel @Inject constructor(
         if (_uiState.value.sortOrder == order) return
         _uiState.value = _uiState.value.copy(sortOrder = order)
         loadMaterials()
+    }
+
+    /** 仅上线筛选：走服务端 online=1 参数，total/翻页都按服务端口径（比类型客户端过滤干净） */
+    fun toggleOnlyOnline() {
+        _uiState.value = _uiState.value.copy(onlyOnline = !_uiState.value.onlyOnline)
+        loadMaterials()
+        loadFilterCounts()
     }
 
     fun saveScrollPosition(index: Int, offset: Int) {
@@ -431,6 +459,50 @@ class MaterialsViewModel @Inject constructor(
 
     fun dismissMoreSheet() {
         _uiState.value = _uiState.value.copy(showMoreSheet = false)
+    }
+
+    /** 更多操作 → 详情：关操作弹窗、开详情弹窗（素材本体在 selectedMaterial 里） */
+    fun showDetailDialogForMaterial() {
+        _uiState.value = _uiState.value.copy(
+            showMoreSheet = false,
+            showDetailDialog = true
+        )
+    }
+
+    fun dismissDetailDialog() {
+        _uiState.value = _uiState.value.copy(showDetailDialog = false)
+    }
+
+    /** 上线 ⇄ 取消上线：PATCH 只发 online 一个字段，服务端按字段存在性更新（不动名称/描述/标签） */
+    fun toggleOnline() {
+        val material = _uiState.value.selectedMaterial ?: return
+        val target = !material.online
+        // 先关弹窗（和下载同款），请求结果走 toast 反馈
+        _uiState.value = _uiState.value.copy(showMoreSheet = false)
+        viewModelScope.launch {
+            try {
+                val response = apiService.updateMaterialOnline(
+                    material.id,
+                    UpdateOnlineRequest(online = target)
+                )
+                if (response.isSuccessful) {
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = if (target) "已上线，列表置顶" else "已取消上线"
+                    )
+                    loadMaterials()
+                } else {
+                    diagLog("上线切换失败 HTTP ${response.code()}")
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = "操作失败：HTTP ${response.code()}"
+                    )
+                }
+            } catch (e: Exception) {
+                diagLog("上线切换异常 ${e.message}")
+                _uiState.value = _uiState.value.copy(
+                    toastMessage = "操作失败：${e.message}"
+                )
+            }
+        }
     }
 
     fun showEditDialogForMaterial() {
