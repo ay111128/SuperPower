@@ -2,6 +2,7 @@ package com.paperbox.app.ui.quote
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -11,15 +12,14 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +29,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -53,6 +55,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -60,9 +63,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogWindowProvider
 import com.paperbox.app.CrashDiagnostics
 import kotlinx.coroutines.launch
 import kotlin.math.cos
@@ -418,7 +421,6 @@ private fun BareSymbolButton(
 @Composable
 internal fun BoxPreviewSheet(
     state: QuoteUiState,
-    imeBottom: Dp = 0.dp, // 主窗口测得的键盘高度（Dialog 窗口不发 ime inset，由 QuoteScreen 传入）
     onLength: (String) -> Unit,
     onWidth: (String) -> Unit,
     onHeight: (String) -> Unit,
@@ -431,10 +433,6 @@ internal fun BoxPreviewSheet(
     var isEnglish by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // 键盘上顶量 = 主窗口传入值 与 本(Dialog)窗口 ime 读数 取较大者：
-    // Sheet 窗口 Android 11+ 是 ADJUST_NOTHING，实测不下发 ime inset（imePadding 读0）；
-    // 主窗口走全局 insets 分发（首页 FAB 避让同款读法，线上有效）。谁生效用谁，双生效不叠加。
-    val imeLift = maxOf(imeBottom, WindowInsets.ime.asPaddingValues().calculateBottomPadding())
     // 画布注册的导出函数：基于当前相机状态离屏重渲一张位图
     var captureProvider by remember { mutableStateOf<(() -> Bitmap?)?>(null) }
 
@@ -469,106 +467,125 @@ internal fun BoxPreviewSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        // 跳过半展开：打开即全内容高度，输入框直接露出（默认半展开会卡在半截，要手拖一下）
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                // 键盘弹出时把整列（模型画布+输入框）顶到输入法上方，输入框离键盘28dp
-                .padding(bottom = 28.dp + imeLift),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // ── 标题行：标题居中，右手边 中/EN + 下载 ──
-            Box(
+        // 弹层窗口跟随键盘缩放：material3 在 Android 11+ 把弹层窗口设成 SOFT_INPUT_ADJUST_NOTHING
+        // （不缩窗、不发 ime inset），这里组合后强改回 ADJUST_RESIZE —— 系统把窗口底边直接缩到
+        // 键盘上方，输入框自然贴键盘上沿，不再手算键盘高度。LocalView 就是弹层内容的宿主 View
+        // （ModalBottomSheetDialogLayout），自身实现了 DialogWindowProvider。
+        val sheetView = LocalView.current
+        SideEffect {
+            (sheetView as? DialogWindowProvider)?.window
+                ?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        }
+
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            // 高度预算：画布之外的固定内容共 204dp
+            // （标题36 + 4×间距48 + 说明行24 + 输入行36 + 提示行32 + 底部留白28）。
+            // 键盘把窗口压矮时先等比缩小画布，保证下面的输入行永远完整露出。
+            val canvasMax = (maxHeight - 204.dp).coerceAtLeast(0.dp)
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(36.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    if (isEnglish) "Box Size Preview" else "飞机盒尺寸预览",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = QuoteTitle,
-                    textAlign = TextAlign.Center,
+                // ── 标题行：标题居中，右手边 中/EN + 下载 ──
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .align(Alignment.Center)
-                )
-                Row(
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 16.dp)
+                        .height(36.dp)
                 ) {
-                    // 中/EN：显示当前可切换到的语言（和报价结果页顶栏同约定）
-                    BareSymbolButton(onClick = { isEnglish = !isEnglish }) {
-                        Text(
-                            if (isEnglish) "中" else "EN",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = QuoteGreen
-                        )
-                    }
-                    // 下载：离屏重渲画布内容存相册
-                    BareSymbolButton(onClick = { downloadPreview() }) {
-                        Icon(
-                            Icons.Default.FileDownload,
-                            contentDescription = if (isEnglish) "Download screenshot" else "下载截图",
-                            tint = QuoteGreen,
-                            modifier = Modifier.size(18.dp)
-                        )
+                    Text(
+                        if (isEnglish) "Box Size Preview" else "飞机盒尺寸预览",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = QuoteTitle,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.Center)
+                    )
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 中/EN：显示当前可切换到的语言（和报价结果页顶栏同约定）
+                        BareSymbolButton(onClick = { isEnglish = !isEnglish }) {
+                            Text(
+                                if (isEnglish) "中" else "EN",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = QuoteGreen
+                            )
+                        }
+                        // 下载：离屏重渲画布内容存相册
+                        BareSymbolButton(onClick = { downloadPreview() }) {
+                            Icon(
+                                Icons.Default.FileDownload,
+                                contentDescription = if (isEnglish) "Download screenshot" else "下载截图",
+                                tint = QuoteGreen,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
-            }
 
-            // ── 画布：通栏贴屏幕边缘 + 1:1 正方形视口 → 所见即所存，导出天然1:1 ──
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .background(QuoteRowBg)
-            ) {
-                BoxPreviewCanvas(
-                    lengthCm = state.form.length,
-                    widthCm = state.form.width,
-                    heightCm = state.form.height,
-                    baseColor = materialColor,
-                    isEnglish = isEnglish,
-                    onRegisterCapture = { captureProvider = it }
+                // ── 画布：1:1 正方形视口 → 所见即所存，导出天然1:1；
+                //    不钉死屏宽，窗口被键盘压矮时按 canvasMax 等比缩小并水平居中 ──
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .heightIn(max = canvasMax)
+                        .aspectRatio(1f)
+                        .background(QuoteRowBg)
+                ) {
+                    BoxPreviewCanvas(
+                        lengthCm = state.form.length,
+                        widthCm = state.form.width,
+                        heightCm = state.form.height,
+                        baseColor = materialColor,
+                        isEnglish = isEnglish,
+                        onRegisterCapture = { captureProvider = it }
+                    )
+                }
+
+                Text(
+                    text = "${trimNumber(state.form.length)} × ${trimNumber(state.form.width)} × " +
+                        "${trimNumber(state.form.height)} cm ｜ $materialLabel",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = QuoteTitle,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+
+                // 弹层内可直接改尺寸，模型实时跟随
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    QuoteField("长", state.lengthText, onLength, Modifier.weight(1f))
+                    QuoteField("宽", state.widthText, onWidth, Modifier.weight(1f))
+                    QuoteField("高", state.heightText, onHeight, Modifier.weight(1f))
+                }
+
+                Text(
+                    if (isEnglish) "Drag to rotate · Pinch to zoom · Tap an edge to set the label"
+                    else "拖动旋转 · 双指缩放 · 点边线指定标注（点空白恢复自动）",
+                    fontSize = 11.sp,
+                    color = QuoteMuted,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    textAlign = TextAlign.Center
                 )
             }
-
-            Text(
-                text = "${trimNumber(state.form.length)} × ${trimNumber(state.form.width)} × " +
-                    "${trimNumber(state.form.height)} cm ｜ $materialLabel",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = QuoteTitle,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-
-            // 弹层内可直接改尺寸，模型实时跟随
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                QuoteField("长", state.lengthText, onLength, Modifier.weight(1f))
-                QuoteField("宽", state.widthText, onWidth, Modifier.weight(1f))
-                QuoteField("高", state.heightText, onHeight, Modifier.weight(1f))
-            }
-
-            Text(
-                if (isEnglish) "Drag to rotate · Pinch to zoom · Tap an edge to set the label"
-                else "拖动旋转 · 双指缩放 · 点边线指定标注（点空白恢复自动）",
-                fontSize = 11.sp,
-                color = QuoteMuted,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                textAlign = TextAlign.Center
-            )
         }
     }
 }
