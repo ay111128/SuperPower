@@ -221,6 +221,15 @@ private fun SpotResultRow(
     val context = LocalContext.current
     val displaySize = match.size.replace('x', '×').replace('X', '×').replace('*', '×')
 
+    // 整行复制文本：色系名 + 尺寸 + 单价 + 数量/总计（有数量才带）
+    val categoryLabel = SpotTabOptions.find { it.category == match.category }?.label ?: match.category
+    val copyText = buildString {
+        append(categoryLabel).append(' ').append(displaySize).append(' ').append(money(match.price))
+        if (quantity > 0) {
+            append(' ').append(quantity).append("个 总计").append(money(match.price * quantity))
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -235,8 +244,8 @@ private fun SpotResultRow(
                 onClick = {},
                 onDoubleClick = onDoubleClick,
                 onLongClick = {
-                    clipboardManager.setText(AnnotatedString(displaySize))
-                    Toast.makeText(context, "已复制：$displaySize", Toast.LENGTH_SHORT).show()
+                    clipboardManager.setText(AnnotatedString(copyText))
+                    Toast.makeText(context, "已复制：$copyText", Toast.LENGTH_SHORT).show()
                 }
             )
             .padding(horizontal = 14.dp, vertical = 12.dp),
