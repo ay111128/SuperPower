@@ -40,6 +40,9 @@ object PrefsKeys {
 
     /** 报价历史（JSON 数组，QuoteHistoryEntry，上限 20 条） */
     val QUOTE_HISTORY = stringPreferencesKey("quote_history")
+
+    /** 历史搜索记录（JSON 字符串数组，上限 10 条） */
+    val SEARCH_HISTORY = stringPreferencesKey("search_history")
 }
 
 @Singleton

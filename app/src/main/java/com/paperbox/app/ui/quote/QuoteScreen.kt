@@ -18,6 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -391,6 +394,66 @@ fun QuoteScreen(
                 )
             }
 
+            // ── 历史搜索记录（搜索态且输入为空时展示） ──
+            if (state.isSearchActive && state.searchFieldText.isBlank() && state.searchHistory.isNotEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Surface(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White,
+                        shadowElevation = 6.dp
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("最近搜索", fontSize = 12.sp, color = Color(0xFF999999))
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    "清空",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = QuoteGreen,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { viewModel.clearSearchHistory() }
+                                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                                )
+                            }
+                            state.searchHistory.forEach { query ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { viewModel.searchByTraceCode(query) }
+                                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Search,
+                                        contentDescription = null,
+                                        tint = Color(0xFFBBBBBB),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(
+                                        query,
+                                        fontSize = 13.sp,
+                                        color = Color(0xFF333333),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // ── 搜索结果列表（多条时弹出） ──
             if (state.searchResults.isNotEmpty()) {
                 Box(
@@ -421,7 +484,7 @@ fun QuoteScreen(
                             val price = if (record.finalAmount != null) "¥${String.format("%.2f", record.finalAmount)}" else ""
                             val dim = "${trimNumber(record.length)}×${trimNumber(record.width)}×${trimNumber(record.height)}cm"
                             val qty = "${record.quantity}个"
-                            val date = record.createdAt.take(10)
+                            val date = formatLocalDateTime(record.createdAt).take(10)
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -523,49 +586,82 @@ private fun QuoteGenerateFab(enabled: Boolean, onClick: () -> Unit) {
 
 private fun fmtMoney(value: Double): String = String.format("%.2f", value)
 
-/** 按报价页的两个分组竖排生成树形文本；无任何勾选返回 null */
-private fun buildProcessTree(form: QuoteFormValues): String? {
+/**
+ * ISO(UTC) 时间串 → 本地时区 'yyyy-MM-dd HH:mm:ss'。
+ * created_at 是服务端 toISOString() 存的 UTC，直接截串显示会差 8 小时（跨天还会错日期）。
+ */
+private fun formatLocalDateTime(iso: String): String = try {
+    java.time.LocalDateTime.ofInstant(
+        java.time.Instant.parse(iso),
+        java.time.ZoneId.systemDefault()
+    ).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+} catch (_: Exception) {
+    iso
+}
+
+/** 按分取整：金额显示与求和表达式共用，保证「分项相加 = 显示合计」不会差 0.01 */
+private fun round2(value: Double): Double = Math.round(value * 100.0) / 100.0
+
+/** 金额 → 展示串：按分取整并去尾零（200 → "200"，752.72 → "752.72"），与 Web 端 formatMoney 口径一致 */
+private fun fmtAmount(value: Double): String = trimNumber(round2(value))
+
+/**
+ * 按报价页的两个分组竖排生成树形文本；无任何勾选返回 null。
+ * 分组标题后追加求和表达式（200+200+300+45=745元），每个选项后追加实际计费金额（200元）——
+ * 金额取自快照重算的明细行 [lines]（工厂加价不在明细行里，直接用表单值），与 Web 端 QuoteRecordSearchDialog 对齐。
+ */
+private fun buildProcessTree(form: QuoteFormValues, lines: List<ChargeLine>): AnnotatedString? {
     val p = form.processes
     fun mark(s: SidedType) = if (s == SidedType.DOUBLE) " ×2" else ""
+    // 明细行里的名字：模切费 / 刀模费 / 杂费 / 满印油墨 / 覆膜 / 裱纸 / 印刷费 / 丝印费（已含单双面倍数）
+    fun amt(name: String) = lines.firstOrNull { it.name == name }?.amount ?: 0.0
+
     val basic = buildList {
-        if (p.dieCutEnabled) add("模切费")
-        if (p.toolingEnabled) add("刀模费")
-        if (form.extraFeeEnabled) add("工厂加价 ${fmtMoney(form.extraFee)} 元")
-        if (p.miscEnabled) add("杂费/个")
+        if (p.dieCutEnabled) add("模切费" to amt("模切费"))
+        if (p.toolingEnabled) add("刀模费" to amt("刀模费"))
+        if (form.extraFeeEnabled) add("工厂加价" to form.extraFee)
+        if (p.miscEnabled) add("杂费/个" to amt("杂费"))
     }
     val print = buildList {
-        if (p.fullPrintEnabled) add("满印油墨" + mark(p.fullPrintSided))
-        if (p.laminationEnabled) add("覆膜" + mark(p.laminationSided))
-        if (p.mountingEnabled) add("裱纸" + mark(p.mountingSided))
-        if (p.printingEnabled) add("印刷费")
-        if (p.screenPrintEnabled) add("丝印费")
+        if (p.fullPrintEnabled) add(("满印油墨" + mark(p.fullPrintSided)) to amt("满印油墨"))
+        if (p.laminationEnabled) add(("覆膜" + mark(p.laminationSided)) to amt("覆膜"))
+        if (p.mountingEnabled) add(("裱纸" + mark(p.mountingSided)) to amt("裱纸"))
+        if (p.printingEnabled) add("印刷费" to amt("印刷费"))
+        if (p.screenPrintEnabled) add("丝印费" to amt("丝印费"))
     }
     val groups = listOf("基础选项" to basic, "印刷定制" to print).filter { it.second.isNotEmpty() }
     if (groups.isEmpty()) return null
-    return buildString {
+    return buildAnnotatedString {
         groups.forEachIndexed { gi, (title, items) ->
-            if (gi > 0) appendLine()
+            if (gi > 0) append("\n")
             append(if (gi == groups.size - 1) "└─ " else "├─ ")
             append(title)
-            items.forEachIndexed { ii, item ->
-                appendLine()
-                append("  ")
+            // 分组标题后的求和表达式：各项按分取整后相加，合计 = 取整后的分项之和
+            val total = items.sumOf { round2(it.second) }
+            pushStyle(SpanStyle(color = QuotePrice, fontWeight = FontWeight.SemiBold))
+            append(" ${items.joinToString("+") { (_, amount) -> fmtAmount(amount) }}=${fmtAmount(total)}元")
+            pop()
+            items.forEachIndexed { ii, (label, amount) ->
+                append("\n  ")
                 append(if (ii == items.size - 1) "└─ " else "├─ ")
-                append(item)
+                append(label)
+                pushStyle(SpanStyle(color = QuotePrice, fontWeight = FontWeight.SemiBold))
+                append(" ${fmtAmount(amount)}元")
+                pop()
             }
         }
     }
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
+private fun DetailRow(label: String, value: String, valueColor: Color = Color(0xFF333333)) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         Text(label, fontSize = 13.sp, color = Color(0xFF999999))
         Text(
             value,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
-            color = Color(0xFF333333),
+            color = valueColor,
             textAlign = TextAlign.End,
             modifier = Modifier.weight(1f).padding(start = 16.dp)
         )
@@ -645,11 +741,21 @@ private fun SearchDetailDialog(
                     .verticalScroll(rememberScrollState())
             ) {
                 Text(
-                    record.createdAt.replace('T', ' ').take(19),
+                    formatLocalDateTime(record.createdAt),
                     fontSize = 11.sp,
                     color = Color(0xFF999999)
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
+
+                // 利润：提到时间与尺寸之间，绿色文字
+                val profitText = when {
+                    form == null -> "记录 ¥${fmtMoney(record.profitAmount ?: 0.0)} 元（口径未存）"
+                    form.profitMode == ProfitMode.AMOUNT ->
+                        "按金额 ¥${fmtMoney(form.profitAmount)} 元"
+                    else ->
+                        "按百分比 ${trimNumber(form.profitPercentage)}%（记录利润 ¥${fmtMoney(record.profitAmount ?: 0.0)} 元）"
+                }
+                DetailRow("利润", profitText, valueColor = QuoteGreen)
 
                 DetailRow(
                     "尺寸",
@@ -660,7 +766,16 @@ private fun SearchDetailDialog(
                 val paperText = if (form != null) {
                     val unitPrice = form.materialUnitPrices[form.materialKey]
                         ?: (record.materialUnitPrice ?: 0.0)
-                    "${form.materialKey.label} · ${fmtMoney(unitPrice)} 元/方"
+                    val base = "${form.materialKey.label} · ${fmtMoney(unitPrice)} 元/方"
+                    // 单价后追加「总平方 · 材料费」；现货单的材料行叫「现货价格」不计材料费，故不追加（与 Web 端一致）
+                    val materialLine = detail.lines.firstOrNull { it.name == "材料费" }
+                    val areaM2 = detail.areaM2
+                    if (materialLine != null && areaM2 != null) {
+                        val totalArea = trimNumber(round2(areaM2 * form.orderQuantity))
+                        "$base · $totalArea 平方 · ${fmtMoney(materialLine.amount)} 元"
+                    } else {
+                        base
+                    }
                 } else {
                     record.materialLabel ?: "—"
                 }
@@ -671,13 +786,23 @@ private fun SearchDetailDialog(
                 }
 
                 SectionLabel("工艺")
-                val tree = form?.let { buildProcessTree(it) }
-                Text(
-                    tree ?: "旧记录未存工艺配置",
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp,
-                    color = if (tree == null) Color(0xFF999999) else Color(0xFF333333)
-                )
+                val tree = form?.let { buildProcessTree(it, detail.lines) }
+                if (tree != null) {
+                    Text(
+                        tree,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                        color = Color(0xFF333333)
+                    )
+                } else {
+                    // 区分「旧记录没快照」和「有快照但一个工艺都没勾」
+                    Text(
+                        if (form == null) "旧记录未存工艺配置" else "未勾选工艺",
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                        color = Color(0xFF999999)
+                    )
+                }
 
                 SectionLabel("附加费")
                 when {
@@ -709,15 +834,6 @@ private fun SearchDetailDialog(
                     )
                     else -> Text("无", fontSize = 13.sp, color = Color(0xFF999999))
                 }
-
-                val profitText = when {
-                    form == null -> "记录 ¥${fmtMoney(record.profitAmount ?: 0.0)} 元（口径未存）"
-                    form.profitMode == ProfitMode.AMOUNT ->
-                        "按金额 ¥${fmtMoney(form.profitAmount)} 元"
-                    else ->
-                        "按百分比 ${trimNumber(form.profitPercentage)}%（记录利润 ¥${fmtMoney(record.profitAmount ?: 0.0)} 元）"
-                }
-                DetailRow("利润", profitText)
 
                 if (detail.lines.isNotEmpty()) {
                     SectionLabel("计费明细")

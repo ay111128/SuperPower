@@ -69,6 +69,8 @@ data class QuoteUiState(
     val searchResults: List<QuoteRecordDetail> = emptyList(),
     /** 工单搜索 → 计费详情弹窗数据；null 表示弹窗关闭 */
     val searchDetail: SearchDetail? = null,
+    /** 历史搜索记录（新→旧，上限 10 条），DataStore 持久化 */
+    val searchHistory: List<String> = emptyList(),
     /** 本机报价历史（新→旧），DataStore 持久化 */
     val history: List<QuoteHistoryEntry> = emptyList()
 ) {
@@ -85,6 +87,7 @@ data class QuoteUiState(
  * 计费详情弹窗的数据快照（打开弹窗时一次性算好）。
  * [form]/[spot] 来自 form_snapshot/spot_snapshot；旧记录为 null 走顶层字段展示。
  * [lines] 为按快照+当前费率重算的明细行；[drift] 表示重算合计与记录落库合计不一致。
+ * [areaM2] 是单盒展开面积（m²，旧记录为 null），纸材行的总平方 = areaM2 × 数量。
  */
 @Immutable
 data class SearchDetail(
@@ -92,6 +95,7 @@ data class SearchDetail(
     val form: QuoteFormValues?,
     val spot: SpotMatch?,
     val lines: List<ChargeLine>,
+    val areaM2: Double?,
     val drift: Boolean,
 )
 
@@ -113,9 +117,16 @@ class QuoteViewModel @Inject constructor(
             Types.newParameterizedType(List::class.java, QuoteHistoryEntry::class.java)
         )
 
+    private val searchHistoryAdapter: JsonAdapter<List<String>> = Moshi.Builder()
+        .build()
+        .adapter(
+            Types.newParameterizedType(List::class.java, String::class.java)
+        )
+
     init {
         loadData()
         loadHistory()
+        loadSearchHistory()
     }
 
     private fun loadHistory() {
@@ -136,6 +147,42 @@ class QuoteViewModel @Inject constructor(
                 context.dataStore.edit { it[PrefsKeys.QUOTE_HISTORY] = historyAdapter.toJson(list) }
             } catch (_: Exception) {
                 // 写失败只丢历史，不影响报价
+            }
+        }
+    }
+
+    private fun loadSearchHistory() {
+        viewModelScope.launch {
+            try {
+                val json = context.dataStore.data.first()[PrefsKeys.SEARCH_HISTORY] ?: return@launch
+                val list = searchHistoryAdapter.fromJson(json) ?: emptyList()
+                _uiState.value = _uiState.value.copy(searchHistory = list)
+            } catch (_: Exception) {
+                // 历史损坏不影响搜索
+            }
+        }
+    }
+
+    /** 搜索执行时记入历史：去重置顶、上限 10 条、DataStore 持久化 */
+    private fun pushSearchHistory(query: String) {
+        val next = (listOf(query) + _uiState.value.searchHistory.filter { it != query }).take(10)
+        _uiState.value = _uiState.value.copy(searchHistory = next)
+        viewModelScope.launch {
+            try {
+                context.dataStore.edit { it[PrefsKeys.SEARCH_HISTORY] = searchHistoryAdapter.toJson(next) }
+            } catch (_: Exception) {
+                // 写失败只丢历史
+            }
+        }
+    }
+
+    fun clearSearchHistory() {
+        _uiState.value = _uiState.value.copy(searchHistory = emptyList())
+        viewModelScope.launch {
+            try {
+                context.dataStore.edit { it.remove(PrefsKeys.SEARCH_HISTORY) }
+            } catch (_: Exception) {
+                // 忽略
             }
         }
     }
@@ -622,6 +669,7 @@ class QuoteViewModel @Inject constructor(
     fun searchByTraceCode(code: String) {
         val trimmed = code.trim()
         if (trimmed.isEmpty()) return
+        pushSearchHistory(trimmed)
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
@@ -686,6 +734,7 @@ class QuoteViewModel @Inject constructor(
                 form = form,
                 spot = spot,
                 lines = comp?.chargeLines ?: emptyList(),
+                areaM2 = comp?.areaM2,
                 drift = comp != null && abs(comp.finalAmount - storedFinal) > 0.01,
             ),
             searchResults = emptyList(),
