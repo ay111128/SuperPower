@@ -60,12 +60,13 @@ data class QuoteUiState(
     val selectedSpotProduct: SpotMatch? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
+    /** 一次性轻提示（Toast），消费后清空 */
+    val infoMessage: String? = null,
     val traceCode: String? = null,
     val lastSavedForm: QuoteFormValues? = null,
     val isEnglish: Boolean = false,
     val isSearchActive: Boolean = false,
     val searchFieldText: String = "",
-    val searchReady: Boolean = false,
     val searchResults: List<QuoteRecordDetail> = emptyList(),
     /** 工单搜索 → 计费详情弹窗数据；null 表示弹窗关闭 */
     val searchDetail: SearchDetail? = null,
@@ -636,8 +637,8 @@ class QuoteViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(errorMessage = null)
     }
 
-    fun clearSearchReady() {
-        _uiState.value = _uiState.value.copy(searchReady = false)
+    fun clearInfoMessage() {
+        _uiState.value = _uiState.value.copy(infoMessage = null)
     }
 
     fun clearTraceCode() {
@@ -767,6 +768,8 @@ class QuoteViewModel @Inject constructor(
      * 附加费、利润、工艺费在结果页直接消失。
      * 表单侧优先用 form_snapshot 完整快照（工艺开关/附加费明细/利润口径/现货都能如实还原）；
      * 旧记录没有快照时退回顶层字段重建（此时工艺开关恢复不了）。
+     *
+     * 回填后**停在报价页**（与 Web 端一致）：用户是来改参数的，直接跳结果页反而没地方改。
      */
     private fun applySearchResult(record: QuoteRecordDetail) {
         val materialKey = record.materialKey?.let { MaterialKey.fromApiKey(it) } ?: MaterialKey.KRAFT_SMALL
@@ -856,7 +859,8 @@ class QuoteViewModel @Inject constructor(
             searchResults = emptyList(),
             isSearchActive = false,
             searchFieldText = "",
-            searchReady = true,
+            // 回填后停在报价页（不跳结果页），用 Toast 告诉用户配置已经载进来了
+            infoMessage = "已载入工单 ${record.traceCode} 的配置",
             isLoading = false
         )
         rematch()
@@ -880,7 +884,6 @@ class QuoteViewModel @Inject constructor(
             errorMessage = null,
             isSearchActive = false,
             searchFieldText = "",
-            searchReady = false,
             spotMatchEnabled = false,
             spotTolerance = QuoteUiState.DEFAULT_TOLERANCE,
             spotCategory = "kraft",
