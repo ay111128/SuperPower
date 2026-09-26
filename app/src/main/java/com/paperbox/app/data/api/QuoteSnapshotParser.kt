@@ -11,6 +11,7 @@ import com.paperbox.app.domain.model.SpecialFee
 import com.paperbox.app.domain.model.SpotMatch
 import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 
 /**
  * 报价表单快照 JSON ⇄ 领域模型（form_snapshot / spot_snapshot）。
@@ -27,11 +28,27 @@ object QuoteSnapshotParser {
 
     // ── 读 ──
 
+    /**
+     * 快照可能被服务端二次编码：安卓保存时把快照当 JSON 字符串发，
+     * 服务端 JSON.stringify 后落库值形如 `"{\"length\":35,…}"`（外面多一层引号）。
+     * 直接喂 JSONObject 会抛 "must begin with {"，被当成旧记录——所以先剥引号，最多两层。
+     */
+    private fun unwrapSnapshot(json: String): String {
+        var text = json.trim()
+        repeat(2) {
+            if (!text.startsWith('"')) return text
+            val inner = runCatching { JSONTokener(text).nextValue() }.getOrNull()
+            if (inner !is String) return text
+            text = inner
+        }
+        return text
+    }
+
     /** 解析 form_snapshot；JSON 坏/结构不符返回 null（调用方退回顶层字段重建） */
     fun parseForm(json: String?): QuoteFormValues? {
         if (json.isNullOrBlank()) return null
         return try {
-            val o = JSONObject(json)
+            val o = JSONObject(unwrapSnapshot(json))
             val d = QuoteFormValues()
 
             val materialKey = o.optString("materialKey").takeIf { it.isNotEmpty() }
@@ -72,7 +89,7 @@ object QuoteSnapshotParser {
     fun parseSpot(json: String?): SpotMatch? {
         if (json.isNullOrBlank()) return null
         return try {
-            val o = JSONObject(json)
+            val o = JSONObject(unwrapSnapshot(json))
             val category = o.optString("category", "")
             val size = o.optString("size", "")
             if (category.isEmpty() && size.isEmpty()) null
