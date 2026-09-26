@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paperbox.app.data.api.ApiService
 import com.paperbox.app.data.api.PrefsKeys
+import com.paperbox.app.data.api.QuoteSnapshotParser
 import com.paperbox.app.data.api.dataStore
 import com.paperbox.app.data.api.models.QuoteHistoryEntry
 import com.paperbox.app.data.api.models.QuoteRecordDetail
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -65,6 +67,8 @@ data class QuoteUiState(
     val searchFieldText: String = "",
     val searchReady: Boolean = false,
     val searchResults: List<QuoteRecordDetail> = emptyList(),
+    /** 工单搜索 → 计费详情弹窗数据；null 表示弹窗关闭 */
+    val searchDetail: SearchDetail? = null,
     /** 本机报价历史（新→旧），DataStore 持久化 */
     val history: List<QuoteHistoryEntry> = emptyList()
 ) {
@@ -76,6 +80,20 @@ data class QuoteUiState(
         const val MAX_TOLERANCE = 10.0
     }
 }
+
+/**
+ * 计费详情弹窗的数据快照（打开弹窗时一次性算好）。
+ * [form]/[spot] 来自 form_snapshot/spot_snapshot；旧记录为 null 走顶层字段展示。
+ * [lines] 为按快照+当前费率重算的明细行；[drift] 表示重算合计与记录落库合计不一致。
+ */
+@Immutable
+data class SearchDetail(
+    val record: QuoteRecordDetail,
+    val form: QuoteFormValues?,
+    val spot: SpotMatch?,
+    val lines: List<ChargeLine>,
+    val drift: Boolean,
+)
 
 @HiltViewModel
 class QuoteViewModel @Inject constructor(
@@ -524,7 +542,11 @@ class QuoteViewModel @Inject constructor(
                     extraFee = if (state.form.extraFeeEnabled) state.form.extraFee else 0.0,
                     finalAmount = result.finalAmount,
                     unitPrice = if (state.form.orderQuantity > 0) result.finalAmount / state.form.orderQuantity else 0.0,
-                    totalWeight = result.totalWeight
+                    totalWeight = result.totalWeight,
+                    // 表单/现货快照：计费详情弹窗与 Web 端回填都靠它（旧版服务端字段已支持）
+                    formSnapshot = runCatching { QuoteSnapshotParser.toJson(state.form) }.getOrNull(),
+                    spotSnapshot = state.selectedSpotProduct
+                        ?.let { runCatching { QuoteSnapshotParser.spotToJson(it) }.getOrNull() }
                 )
                 val response = apiService.saveQuoteRecord(request)
                 if (response.isSuccessful) {
@@ -616,7 +638,8 @@ class QuoteViewModel @Inject constructor(
                             )
                         }
                         records.size == 1 -> {
-                            applySearchResult(records.first())
+                            // 单条命中：先打开计费详情弹窗，用户点「载入编辑」才回填
+                            openSearchDetail(records.first())
                         }
                         else -> {
                             _uiState.value = _uiState.value.copy(
@@ -643,9 +666,44 @@ class QuoteViewModel @Inject constructor(
         }
     }
 
-    /** 选中搜索结果列表中的某一条 */
+    /** 搜索结果列表点某一条 → 打开计费详情弹窗 */
     fun selectSearchResult(record: QuoteRecordDetail) {
-        applySearchResult(record)
+        openSearchDetail(record)
+    }
+
+    /**
+     * 打开工单计费详情弹窗：解析快照 → 按当前费率重算明细行（旧记录无快照则留空）。
+     * 单条命中与多条列表共用此入口。
+     */
+    fun openSearchDetail(record: QuoteRecordDetail) {
+        val form = QuoteSnapshotParser.parseForm(record.formSnapshot)
+        val spot = QuoteSnapshotParser.parseSpot(record.spotSnapshot)
+        val comp = form?.let { calculateQuote.calculate(it, _uiState.value.materialConfigs, spot) }
+        val storedFinal = record.finalAmount ?: 0.0
+        _uiState.value = _uiState.value.copy(
+            searchDetail = SearchDetail(
+                record = record,
+                form = form,
+                spot = spot,
+                lines = comp?.chargeLines ?: emptyList(),
+                drift = comp != null && abs(comp.finalAmount - storedFinal) > 0.01,
+            ),
+            searchResults = emptyList(),
+            isSearchActive = false,
+            searchFieldText = "",
+            isLoading = false,
+        )
+    }
+
+    fun closeSearchDetail() {
+        _uiState.value = _uiState.value.copy(searchDetail = null)
+    }
+
+    /** 详情弹窗点「载入编辑」→ 关弹窗并走既有回填流程 */
+    fun confirmSearchDetailLoad() {
+        val detail = _uiState.value.searchDetail ?: return
+        _uiState.value = _uiState.value.copy(searchDetail = null)
+        applySearchResult(detail.record)
     }
 
     fun clearSearchResults() {
@@ -658,8 +716,8 @@ class QuoteViewModel @Inject constructor(
      * 记录里存的是**结算结果**（材料/工艺/附加费/利润各项金额），回填必须以它为准——
      * 不能 recalculate() 用空表单（无工艺、无附加费）重算覆盖，否则旧记录的
      * 附加费、利润、工艺费在结果页直接消失。
-     * 表单侧尽量恢复能从记录推导的字段，保证：① 报价单/明细行加总 = 合计；
-     * ② 用户随后改字段触发重算时，基线贴近原记录（工艺开关无法恢复，记录没存）。
+     * 表单侧优先用 form_snapshot 完整快照（工艺开关/附加费明细/利润口径/现货都能如实还原）；
+     * 旧记录没有快照时退回顶层字段重建（此时工艺开关恢复不了）。
      */
     private fun applySearchResult(record: QuoteRecordDetail) {
         val materialKey = record.materialKey?.let { MaterialKey.fromApiKey(it) } ?: MaterialKey.KRAFT_SMALL
@@ -670,6 +728,9 @@ class QuoteViewModel @Inject constructor(
         val extraFee = record.extraFee ?: 0.0
         val finalAmount = record.finalAmount ?: 0.0
         val materialUnitPrice = record.materialUnitPrice ?: 0.0
+
+        val snapshotForm = QuoteSnapshotParser.parseForm(record.formSnapshot)
+        val snapshotSpot = QuoteSnapshotParser.parseSpot(record.spotSnapshot)
 
         // 附加费明细没入库，只有总额——合成一条，让明细行/报价单附加费行/行加总恢复一致
         val restoredFees = if (specialFeesCost > 0) {
@@ -686,7 +747,7 @@ class QuoteViewModel @Inject constructor(
             Math.round(profitAmount / subtotalBase * 100.0 * 100.0) / 100.0
         else 0.0
 
-        val restoredForm = QuoteFormValues(
+        val legacyForm = QuoteFormValues(
             length = record.length,
             width = record.width,
             height = record.height,
@@ -698,6 +759,13 @@ class QuoteViewModel @Inject constructor(
             profitPercentage = profitPct,
             specialFees = restoredFees
         )
+        val restoredForm = snapshotForm ?: legacyForm
+        // 利润输入框文本：快照有明确口径就用快照值，否则用反推的百分比
+        val profitTextValue = when {
+            snapshotForm == null -> trimNumber(profitPct)
+            snapshotForm.profitMode == ProfitMode.AMOUNT -> trimNumber(snapshotForm.profitAmount)
+            else -> trimNumber(snapshotForm.profitPercentage)
+        }
 
         // 只借新计算取**几何量**（展开面积/刀模排版），金额字段一律用记录值
         val fresh = calculateQuote.calculate(restoredForm, _uiState.value.materialConfigs, null)
@@ -733,7 +801,9 @@ class QuoteViewModel @Inject constructor(
             widthText = trimNumber(record.width),
             heightText = trimNumber(record.height),
             quantityText = record.quantity.toString(),
-            profitText = trimNumber(profitPct),
+            profitText = profitTextValue,
+            // 现货记录恢复现货选中态，之后用户改字段触发的重算仍走现货价
+            selectedSpotProduct = snapshotSpot,
             searchResults = emptyList(),
             isSearchActive = false,
             searchFieldText = "",

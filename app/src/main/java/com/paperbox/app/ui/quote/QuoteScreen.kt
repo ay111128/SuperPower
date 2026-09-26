@@ -28,13 +28,19 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.paperbox.app.domain.model.ChargeLine
 import com.paperbox.app.domain.model.LayoutKey
 import com.paperbox.app.domain.model.MaterialKey
+import com.paperbox.app.domain.model.PricingMode
+import com.paperbox.app.domain.model.ProfitMode
+import com.paperbox.app.domain.model.QuoteFormValues
+import com.paperbox.app.domain.model.SidedType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -453,6 +459,15 @@ fun QuoteScreen(
                 }
             }
 
+            // ── 工单计费详情弹窗（查询/搜索命中后打开） ──
+            state.searchDetail?.let { detail ->
+                SearchDetailDialog(
+                    detail = detail,
+                    onClose = viewModel::closeSearchDetail,
+                    onLoad = viewModel::confirmSearchDetailLoad,
+                )
+            }
+
             // ── 3D 尺寸预览弹层 ──
             // 注：Compose 不允许 try/catch 包组合调用；组合阶段崩溃走全局 handler
             // 落盘 → 下次冷启动 CrashDiagnostics 自动上传
@@ -500,4 +515,287 @@ private fun QuoteGenerateFab(enabled: Boolean, onClick: () -> Unit) {
             maxLines = 1
         )
     }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 工单计费详情弹窗（与 Web 端 QuoteRecordSearchDialog 对齐）
+// ─────────────────────────────────────────────────────────────
+
+private fun fmtMoney(value: Double): String = String.format("%.2f", value)
+
+/** 按报价页的两个分组竖排生成树形文本；无任何勾选返回 null */
+private fun buildProcessTree(form: QuoteFormValues): String? {
+    val p = form.processes
+    fun mark(s: SidedType) = if (s == SidedType.DOUBLE) " ×2" else ""
+    val basic = buildList {
+        if (p.dieCutEnabled) add("模切费")
+        if (p.toolingEnabled) add("刀模费")
+        if (form.extraFeeEnabled) add("工厂加价 ${fmtMoney(form.extraFee)} 元")
+        if (p.miscEnabled) add("杂费/个")
+    }
+    val print = buildList {
+        if (p.fullPrintEnabled) add("满印油墨" + mark(p.fullPrintSided))
+        if (p.laminationEnabled) add("覆膜" + mark(p.laminationSided))
+        if (p.mountingEnabled) add("裱纸" + mark(p.mountingSided))
+        if (p.printingEnabled) add("印刷费")
+        if (p.screenPrintEnabled) add("丝印费")
+    }
+    val groups = listOf("基础选项" to basic, "印刷定制" to print).filter { it.second.isNotEmpty() }
+    if (groups.isEmpty()) return null
+    return buildString {
+        groups.forEachIndexed { gi, (title, items) ->
+            if (gi > 0) appendLine()
+            append(if (gi == groups.size - 1) "└─ " else "├─ ")
+            append(title)
+            items.forEachIndexed { ii, item ->
+                appendLine()
+                append("  ")
+                append(if (ii == items.size - 1) "└─ " else "├─ ")
+                append(item)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Text(label, fontSize = 13.sp, color = Color(0xFF999999))
+        Text(
+            value,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color(0xFF333333),
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f).padding(start = 16.dp)
+        )
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = Color(0xFF666666),
+        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+    )
+}
+
+@Composable
+private fun DetailLineRow(line: ChargeLine) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(line.name, fontSize = 13.sp, color = Color(0xFF333333))
+            if (line.detail.isNotBlank()) {
+                Text(line.detail, fontSize = 10.sp, color = Color(0xFF999999))
+            }
+        }
+        Text(
+            "¥${fmtMoney(line.amount)}",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = QuotePrice
+        )
+    }
+}
+
+@Composable
+private fun SearchDetailDialog(
+    detail: SearchDetail,
+    onClose: () -> Unit,
+    onLoad: () -> Unit,
+) {
+    val record = detail.record
+    val form = detail.form
+    AlertDialog(
+        onDismissRequest = onClose,
+        containerColor = Color.White,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "工单计费详情",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = QuoteTitle
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    record.traceCode,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = QuoteGreen,
+                    modifier = Modifier
+                        .background(QuoteRowBg, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .heightIn(max = 460.dp)
+            ) {
+                Text(
+                    record.createdAt.replace('T', ' ').take(19),
+                    fontSize = 11.sp,
+                    color = Color(0xFF999999)
+                )
+                Spacer(Modifier.height(8.dp))
+
+                DetailRow(
+                    "尺寸",
+                    "${trimNumber(record.length)} × ${trimNumber(record.width)} × ${trimNumber(record.height)} cm"
+                )
+                DetailRow("数量", "${record.quantity} 个")
+
+                val paperText = if (form != null) {
+                    val unitPrice = form.materialUnitPrices[form.materialKey]
+                        ?: (record.materialUnitPrice ?: 0.0)
+                    "${form.materialKey.label} · ${fmtMoney(unitPrice)} 元/方"
+                } else {
+                    record.materialLabel ?: "—"
+                }
+                DetailRow("纸材", paperText)
+
+                detail.spot?.let { spot ->
+                    DetailRow("现货", "${spot.category} ${spot.size} · ¥${fmtMoney(spot.price)}/个")
+                }
+
+                SectionLabel("工艺")
+                val tree = form?.let { buildProcessTree(it) }
+                Text(
+                    tree ?: "旧记录未存工艺配置",
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp,
+                    color = if (tree == null) Color(0xFF999999) else Color(0xFF333333)
+                )
+
+                SectionLabel("附加费")
+                when {
+                    form != null -> {
+                        val active = form.specialFees.filter { it.enabled }
+                        if (active.isEmpty()) {
+                            Text("无", fontSize = 13.sp, color = Color(0xFF999999))
+                        } else {
+                            active.forEach { fee ->
+                                val amount = if (fee.pricingMode == PricingMode.UNIT_PRICE) {
+                                    fee.unitPrice * form.orderQuantity
+                                } else {
+                                    fee.amount
+                                }
+                                val spec = if (fee.spec.isNotEmpty()) "（${fee.spec}）" else ""
+                                Text(
+                                    "${fee.name}$spec ¥${fmtMoney(amount)} 元",
+                                    fontSize = 13.sp,
+                                    color = Color(0xFF333333),
+                                    modifier = Modifier.padding(vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
+                    (record.specialFeesCost ?: 0.0) > 0 -> Text(
+                        "合计 ¥${fmtMoney(record.specialFeesCost ?: 0.0)} 元（明细未存）",
+                        fontSize = 13.sp,
+                        color = Color(0xFF333333)
+                    )
+                    else -> Text("无", fontSize = 13.sp, color = Color(0xFF999999))
+                }
+
+                val profitText = when {
+                    form == null -> "记录 ¥${fmtMoney(record.profitAmount ?: 0.0)} 元（口径未存）"
+                    form.profitMode == ProfitMode.AMOUNT ->
+                        "按金额 ¥${fmtMoney(form.profitAmount)} 元"
+                    else ->
+                        "按百分比 ${trimNumber(form.profitPercentage)}%（记录利润 ¥${fmtMoney(record.profitAmount ?: 0.0)} 元）"
+                }
+                DetailRow("利润", profitText)
+
+                if (detail.lines.isNotEmpty()) {
+                    SectionLabel("计费明细")
+                    detail.lines.forEach { DetailLineRow(it) }
+                } else if (form == null) {
+                    SectionLabel("费用构成")
+                    DetailLineRow(
+                        ChargeLine(
+                            if (detail.spot != null) "现货成本" else "材料成本",
+                            record.materialCost ?: 0.0
+                        )
+                    )
+                    DetailLineRow(ChargeLine("其他费用", record.processCost ?: 0.0))
+                    Text(
+                        "旧记录未存明细快照，仅展示落库聚合值。",
+                        fontSize = 10.sp,
+                        color = Color(0xFF999999),
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                if (detail.drift) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "按当前费率重算与记录合计不一致（价目有变动），以记录为准。",
+                        fontSize = 11.sp,
+                        color = Color(0xFFB45309),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFFFF7ED), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(QuoteTitle, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("记录合计", fontSize = 11.sp, color = Color(0xFFB0B8C4))
+                        Text(
+                            "¥${fmtMoney(record.finalAmount ?: 0.0)}",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFBBF24)
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        if (record.unitPrice != null) {
+                            Text(
+                                "单价 ¥${fmtMoney(record.unitPrice)}/个",
+                                fontSize = 11.sp,
+                                color = Color(0xFFB0B8C4)
+                            )
+                        }
+                        if (record.totalWeight != null && record.totalWeight > 0) {
+                            Text(
+                                "总重 ${fmtMoney(record.totalWeight)} kg",
+                                fontSize = 11.sp,
+                                color = Color(0xFFB0B8C4)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onLoad) {
+                Text("载入编辑", fontWeight = FontWeight.Bold, color = QuoteGreen)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onClose) {
+                Text("关闭", color = Color(0xFF999999))
+            }
+        }
+    )
 }

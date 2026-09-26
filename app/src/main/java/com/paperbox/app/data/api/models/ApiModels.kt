@@ -172,7 +172,11 @@ data class QuoteRecordRequest(
     @Json(name = "extra_fee") val extraFee: Double? = null,
     @Json(name = "final_amount") val finalAmount: Double? = null,
     @Json(name = "unit_price") val unitPrice: Double? = null,
-    @Json(name = "total_weight") val totalWeight: Double? = null
+    @Json(name = "total_weight") val totalWeight: Double? = null,
+    /** 表单快照 JSON（与 Web 端 cloneFormValues 同构），旧记录为 null */
+    @Json(name = "form_snapshot") val formSnapshot: String? = null,
+    /** 现货快照 JSON（category/size/price/weight），定制报价为 null */
+    @Json(name = "spot_snapshot") val spotSnapshot: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -218,5 +222,9 @@ data class QuoteRecordDetail(
     @Json(name = "extra_fee") val extraFee: Double? = null,
     @Json(name = "final_amount") val finalAmount: Double? = null,
     @Json(name = "unit_price") val unitPrice: Double? = null,
-    @Json(name = "total_weight") val totalWeight: Double? = null
+    @Json(name = "total_weight") val totalWeight: Double? = null,
+    /** 表单快照 JSON（与 Web 端 cloneFormValues 同构），旧记录为 null */
+    @Json(name = "form_snapshot") val formSnapshot: String? = null,
+    /** 现货快照 JSON（category/size/price/weight），定制报价为 null */
+    @Json(name = "spot_snapshot") val spotSnapshot: String? = null
 )
