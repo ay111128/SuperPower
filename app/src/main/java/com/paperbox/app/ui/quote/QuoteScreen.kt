@@ -637,10 +637,12 @@ private fun SearchDetailDialog(
             }
         },
         text = {
+            // 顺序关键：heightIn 必须在 verticalScroll 外层（限制视口），
+            // 反过来会把内容硬裁到 460dp 且滚动距离为 0，超出部分滚不出来
             Column(
                 modifier = Modifier
-                    .verticalScroll(rememberScrollState())
                     .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
                 Text(
                     record.createdAt.replace('T', ' ').take(19),
